@@ -1,3 +1,5 @@
+use adpl::lex;
+
 fn main() {
-    println!("Hello, world!");
+    lex::hello();
 }

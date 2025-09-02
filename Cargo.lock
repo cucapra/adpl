@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "adpl"
 version = "0.1.0"
+dependencies = [
+ "adpl-lex",
+]
+
+[[package]]
+name = "adpl-lex"
+version = "0.1.0"

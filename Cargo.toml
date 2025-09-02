@@ -1,6 +1,17 @@
 [package]
 name = "adpl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+adpl-lex.workspace = true
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace.dependencies]
+adpl-lex = { path = "crates/lex" }
