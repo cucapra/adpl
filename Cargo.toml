@@ -17,5 +17,6 @@ edition = "2024"
 
 [workspace.dependencies]
 argh = "0.1"
+logos = "0.15"
 
 adpl-lex = { path = "crates/lex" }
