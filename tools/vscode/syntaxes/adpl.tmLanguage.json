@@ -1,0 +1,176 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ADPL",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#expressions"
+    },
+    {
+      "include": "#types"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.adpl",
+          "match": "//.*\n"
+        },
+        {
+          "name": "comment.block.adpl",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.numeric.adpl",
+          "match": "\\b(\\d+)\\b"
+        },
+        {
+          "name": "constant.numeric.parameter.adpl",
+          "match": "\\b([A-Z_][0-9A-Z_]*)\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.adpl",
+          "begin": "\\b(def)\\s+(\\w+)(?:\\(|\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.adpl"
+            },
+            "2": {
+              "name": "entity.name.function.adpl"
+            }
+          },
+          "end": "\\{|;",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#keywords"
+            },
+            {
+              "include": "#expressions"
+            },
+            {
+              "include": "#types"
+            },
+            {
+              "match": "\\b(\\w+):",
+              "captures": {
+                "1": {
+                  "name": "variable.parameter.adpl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "meta.struct.adpl",
+          "begin": "\\b(struct)\\s+(\\w+)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.adpl"
+            },
+            "2": {
+              "name": "entity.name.type.adpl"
+            }
+          },
+          "end": "\\{",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#constants"
+            }
+          ]
+        }
+      ]
+    },
+    "expressions": {
+      "patterns": [
+        {
+          "include": "#constants"
+        },
+        {
+          "name": "meta.function.call.adpl",
+          "begin": "\\b(\\w+)(?=(?:\\[.*\\])?\\()",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.function.adpl"
+            }
+          },
+          "end": "\\)",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#keywords"
+            },
+            {
+              "include": "#expressions"
+            },
+            {
+              "include": "#types"
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.adpl",
+          "match": "\\b(else|if|return)\\b"
+        },
+        {
+          "name": "keyword.operator.adpl",
+          "match": "[+*/^]|(-(?!>))|<<|>>|=|\\!=|((?<!-)>)|>=|<|<=|\\!"
+        },
+        {
+          "name": "storage.type.adpl",
+          "match": "\\b(ieee|int|uint)\\b"
+        },
+        {
+          "name": "storage.modifier.adpl",
+          "match": "\\b(unsafe|where)\\b"
+        },
+        {
+          "name": "support.type.adpl",
+          "match": "\\b(fix|float)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "match": "\\b(\\w+)(?=\\[)",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.adpl"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scopeName": "source.adpl"
+}

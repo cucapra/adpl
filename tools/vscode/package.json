@@ -1,0 +1,25 @@
+{
+  "name": "adpl",
+  "displayName": "ADPL",
+  "description": "ADPL syntax highlighting",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "adpl",
+      "aliases": ["ADPL", "adpl"],
+      "extensions": [".adpl"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "adpl",
+      "scopeName": "source.adpl",
+      "path": "./syntaxes/adpl.tmLanguage.json"
+    }]
+  }
+}
