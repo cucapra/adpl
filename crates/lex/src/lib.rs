@@ -1,15 +1,17 @@
 use logos::Logos;
 
-#[derive(Logos)]
+#[derive(Logos, Clone, Copy, PartialEq)]
 #[logos(skip r"[ \t\v\r\n\f]+")]
 #[logos(skip r"//[^\n]*\n")]
 #[logos(skip r"/\*[^*]*\*+([^/*][^*]*\*+)*/")]
-pub enum Token {
+pub enum Token<'src> {
+    Error,
+
     #[regex("[a-zA-Z_][0-9a-zA-Z_]*")]
-    Ident,
+    Ident(&'src str),
 
     #[regex("[0-9]+")]
-    Literal,
+    Literal(&'src str),
 
     #[token("def")]
     Def,
@@ -41,6 +43,8 @@ pub enum Token {
     #[token(">>")]
     Shr,
 
+    #[token("!")]
+    Bang,
     #[token("=")]
     Eq,
     #[token("!=")]
@@ -64,8 +68,6 @@ pub enum Token {
     Dot,
     #[token(";")]
     Semicolon,
-    #[token("_", priority = 3)]
-    Underscore,
 
     #[token("(")]
     OpenParen,
@@ -80,3 +82,5 @@ pub enum Token {
     #[token("]")]
     CloseBracket,
 }
+
+pub type Lexer<'src> = logos::Lexer<'src, Token<'src>>;

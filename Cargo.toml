@@ -8,6 +8,7 @@ argh.workspace = true
 
 adpl-ast.workspace = true
 adpl-lex.workspace = true
+adpl-parse.workspace = true
 
 [workspace]
 members = ["crates/*"]
@@ -18,8 +19,10 @@ edition = "2024"
 
 [workspace.dependencies]
 argh = "0.1"
+chumsky = { version = "0.10", features = ["pratt"] }
 logos = "0.15"
 symbol_table = { version = "0.4", features = ["global"] }
 
 adpl-ast = { path = "crates/ast" }
 adpl-lex = { path = "crates/lex" }
+adpl-parse = { path = "crates/parse" }

@@ -51,7 +51,7 @@ pub struct Definition {
     pub body: Option<Block>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Safety {
     Unsafe,
     Safe,
@@ -125,7 +125,7 @@ pub struct UnaryOp {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum UnaryKind {
     Neg,
     Not,
@@ -137,7 +137,7 @@ pub struct BinaryOp {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum BinaryKind {
     Add,
     Sub,
