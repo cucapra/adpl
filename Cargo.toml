@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 argh.workspace = true
 
+adpl-ast.workspace = true
 adpl-lex.workspace = true
 
 [workspace]
@@ -18,5 +19,7 @@ edition = "2024"
 [workspace.dependencies]
 argh = "0.1"
 logos = "0.15"
+symbol_table = { version = "0.4", features = ["global"] }
 
+adpl-ast = { path = "crates/ast" }
 adpl-lex = { path = "crates/lex" }
