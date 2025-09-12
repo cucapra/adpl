@@ -172,18 +172,21 @@ pub struct Constructor {
 pub struct Span(usize, usize);
 
 impl Span {
+    #[inline]
     pub fn new(start: usize, end: usize) -> Span {
         Span(start, end)
     }
 }
 
 impl From<Range<usize>> for Span {
+    #[inline]
     fn from(value: Range<usize>) -> Self {
         Span::new(value.start, value.end)
     }
 }
 
 impl From<Span> for Range<usize> {
+    #[inline]
     fn from(value: Span) -> Self {
         Range {
             start: value.0,
