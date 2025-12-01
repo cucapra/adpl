@@ -147,11 +147,11 @@
         },
         {
           "name": "storage.type.adpl",
-          "match": "\\b(ieee|int|uint)\\b"
+          "match": "\\b(def|ieee|int|struct|uint)\\b"
         },
         {
           "name": "storage.modifier.adpl",
-          "match": "\\b(unsafe|where)\\b"
+          "match": "\\b(implements|unsafe|where)\\b"
         },
         {
           "name": "support.type.adpl",

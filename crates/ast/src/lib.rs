@@ -47,11 +47,12 @@ pub struct Definition {
     pub name: Id,
     pub generics: Vec<Id>,
     pub requires: Option<Box<Expression>>,
+    pub implements: Option<Box<Expression>>,
     pub sig: Box<Signature>,
     pub body: Option<Block>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Safety {
     Unsafe,
     Safe,
@@ -125,7 +126,7 @@ pub struct UnaryOp {
     pub span: Span,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryKind {
     Neg,
     Not,
@@ -137,7 +138,7 @@ pub struct BinaryOp {
     pub span: Span,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryKind {
     Add,
     Sub,

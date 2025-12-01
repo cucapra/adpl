@@ -285,7 +285,8 @@ where
         .then(ty)
         .map(|(inputs, output)| Box::new(ast::Signature { inputs, output }));
 
-    let requires = just(Token::Where).ignore_then(expr).map(Box::new);
+    let requires = just(Token::Where).ignore_then(expr.clone()).map(Box::new);
+    let implements = just(Token::Implements).ignore_then(expr).map(Box::new);
 
     let definition = group((
         safety,
@@ -293,18 +294,22 @@ where
         generics.or_not(),
         signature,
         requires.or_not(),
+        implements.or_not(),
         block.map(Some).or(just(Token::Semicolon).map(|_| None)),
     ))
-    .map(|(safety, name, generics, sig, requires, body)| {
-        ast::ItemKind::Def(ast::Definition {
-            safety,
-            name,
-            generics: generics.unwrap_or_else(Vec::new),
-            requires,
-            sig,
-            body,
-        })
-    });
+    .map(
+        |(safety, name, generics, sig, requires, implements, body)| {
+            ast::ItemKind::Def(ast::Definition {
+                safety,
+                name,
+                generics: generics.unwrap_or_else(Vec::new),
+                requires,
+                implements,
+                sig,
+                body,
+            })
+        },
+    );
 
     choice((record, definition))
         .map(|kind| ast::Item { kind })
