@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 argh.workspace = true
 
+adpl-arena.workspace = true
 adpl-ast.workspace = true
 adpl-lex.workspace = true
 adpl-parse.workspace = true
@@ -25,6 +26,7 @@ codespan-reporting = "0.11"
 logos = "0.15"
 symbol_table = { version = "0.4", features = ["global"] }
 
+adpl-arena = { path = "crates/arena" }
 adpl-ast = { path = "crates/ast" }
 adpl-lex = { path = "crates/lex" }
 adpl-parse = { path = "crates/parse" }

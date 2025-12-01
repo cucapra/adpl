@@ -6,12 +6,17 @@ version = 4
 name = "adpl"
 version = "0.1.0"
 dependencies = [
+ "adpl-arena",
  "adpl-ast",
  "adpl-lex",
  "adpl-parse",
  "adpl-util",
  "argh",
 ]
+
+[[package]]
+name = "adpl-arena"
+version = "0.1.0"
 
 [[package]]
 name = "adpl-ast"
