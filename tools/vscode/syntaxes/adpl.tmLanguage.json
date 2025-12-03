@@ -6,10 +6,10 @@
       "include": "#comments"
     },
     {
-      "include": "#keywords"
+      "include": "#declarations"
     },
     {
-      "include": "#declarations"
+      "include": "#keywords"
     },
     {
       "include": "#expressions"
