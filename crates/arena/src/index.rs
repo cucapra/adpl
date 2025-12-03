@@ -1,11 +1,14 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::Range;
 
+pub(crate) type IndexInner = u32;
+
 pub struct Index<T> {
-    index: u32,
+    index: IndexInner,
     phantom: PhantomData<fn() -> T>,
 }
 
@@ -19,12 +22,17 @@ impl<T> Index<T> {
     }
 
     #[inline]
-    pub fn from_usize(index: usize) -> Self {
-        Index::new(u32::try_from(index).unwrap())
+    pub(crate) fn inner(self) -> IndexInner {
+        self.index
     }
 
     #[inline]
-    pub fn index(&self) -> usize {
+    pub fn from_usize(index: usize) -> Self {
+        Index::new(IndexInner::try_from(index).unwrap())
+    }
+
+    #[inline]
+    pub fn index(self) -> usize {
         self.index as usize
     }
 }
@@ -68,6 +76,12 @@ impl<T> Ord for Index<T> {
     }
 }
 
+impl<T> fmt::Debug for Index<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Index").field(&self.index).finish()
+    }
+}
+
 pub struct IndexRange<T> {
     pub start: Index<T>,
     pub end: Index<T>,
@@ -81,6 +95,15 @@ impl<T> Clone for IndexRange<T> {
 }
 
 impl<T> Copy for IndexRange<T> {}
+
+impl<T> fmt::Debug for IndexRange<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("IndexRange")
+            .field("start", &self.start.index)
+            .field("end", &self.end.index)
+            .finish()
+    }
+}
 
 impl<T> From<IndexRange<T>> for Range<Index<T>> {
     #[inline]
@@ -103,7 +126,7 @@ impl<T> IntoIterator for IndexRange<T> {
 }
 
 pub struct IndexRangeIterator<T> {
-    range: Range<u32>,
+    range: Range<IndexInner>,
     phantom: PhantomData<fn() -> T>,
 }
 
@@ -145,4 +168,7 @@ impl<T> ExactSizeIterator for IndexRangeIterator<T> {
     }
 }
 
-impl<T> FusedIterator for IndexRangeIterator<T> where Range<u32>: FusedIterator {}
+impl<T> FusedIterator for IndexRangeIterator<T> where
+    Range<IndexInner>: FusedIterator
+{
+}
