@@ -1,12 +1,13 @@
 use std::cmp::Ordering;
-use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::Range;
+use std::{fmt, slice};
 
 pub(crate) type IndexInner = u32;
 
+#[repr(transparent)]
 pub struct Index<T> {
     index: IndexInner,
     phantom: PhantomData<fn() -> T>,
@@ -14,7 +15,7 @@ pub struct Index<T> {
 
 impl<T> Index<T> {
     #[inline]
-    pub fn new(index: u32) -> Self {
+    pub const fn new(index: u32) -> Self {
         Index {
             index,
             phantom: PhantomData,
@@ -171,4 +172,44 @@ impl<T> ExactSizeIterator for IndexRangeIterator<T> {
 impl<T> FusedIterator for IndexRangeIterator<T> where
     Range<IndexInner>: FusedIterator
 {
+}
+
+pub trait InnerSlice {
+    fn as_index<T>(&self) -> &[Index<T>];
+
+    fn as_mut_index<T>(&mut self) -> &mut [Index<T>];
+}
+
+impl InnerSlice for [IndexInner] {
+    #[inline]
+    fn as_index<T>(&self) -> &[Index<T>] {
+        unsafe { slice::from_raw_parts(self.as_ptr().cast(), self.len()) }
+    }
+
+    #[inline]
+    fn as_mut_index<T>(&mut self) -> &mut [Index<T>] {
+        unsafe {
+            slice::from_raw_parts_mut(self.as_mut_ptr().cast(), self.len())
+        }
+    }
+}
+
+pub trait IndexSlice {
+    fn as_inner(&self) -> &[IndexInner];
+
+    fn _as_mut_inner(&mut self) -> &mut [IndexInner];
+}
+
+impl<T> IndexSlice for [Index<T>] {
+    #[inline]
+    fn as_inner(&self) -> &[IndexInner] {
+        unsafe { slice::from_raw_parts(self.as_ptr().cast(), self.len()) }
+    }
+
+    #[inline]
+    fn _as_mut_inner(&mut self) -> &mut [IndexInner] {
+        unsafe {
+            slice::from_raw_parts_mut(self.as_mut_ptr().cast(), self.len())
+        }
+    }
 }

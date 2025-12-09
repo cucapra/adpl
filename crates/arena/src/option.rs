@@ -1,6 +1,6 @@
-use std::fmt;
 use std::marker::PhantomData;
 use std::num::NonZero;
+use std::{fmt, ops};
 
 use crate::index::{Index, IndexInner};
 
@@ -16,6 +16,14 @@ impl<T> NonMaxIndex<T> {
             inner: NonZero::new(!index.inner())?,
             phantom: PhantomData,
         })
+    }
+
+    #[inline]
+    pub const fn zero() -> Self {
+        NonMaxIndex {
+            inner: unsafe { NonZero::new_unchecked(!0) },
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
@@ -41,6 +49,15 @@ impl<T> PartialEq for NonMaxIndex<T> {
 }
 
 impl<T> Eq for NonMaxIndex<T> {}
+
+impl<T> ops::Sub for NonMaxIndex<T> {
+    type Output = IndexInner;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> IndexInner {
+        rhs.inner.get() - self.inner.get() // x - y = !y - !x
+    }
+}
 
 impl<T> fmt::Debug for NonMaxIndex<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
