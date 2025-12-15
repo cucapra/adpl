@@ -1,0 +1,8 @@
+[package]
+name = "adpl-hir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+adpl-arena.workspace = true
+adpl-ast.workspace = true
