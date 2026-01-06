@@ -28,7 +28,7 @@ impl<T> NonMaxIndex<T> {
 
     #[inline]
     pub fn get(self) -> Index<T> {
-        Index::new(!self.inner.get())
+        Index::new_unchecked(!self.inner.get())
     }
 }
 

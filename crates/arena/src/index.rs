@@ -14,8 +14,19 @@ pub struct Index<T> {
 }
 
 impl<T> Index<T> {
+    pub const INVALID: Self = Index::new_unchecked(IndexInner::MAX);
+
     #[inline]
-    pub const fn new(index: u32) -> Self {
+    pub const fn new(index: u32) -> Option<Self> {
+        if index < IndexInner::MAX {
+            Some(Index::new_unchecked(index))
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub(crate) const fn new_unchecked(index: u32) -> Self {
         Index {
             index,
             phantom: PhantomData,
@@ -23,18 +34,23 @@ impl<T> Index<T> {
     }
 
     #[inline]
-    pub(crate) fn inner(self) -> IndexInner {
-        self.index
+    pub fn from_usize(index: usize) -> Option<Self> {
+        IndexInner::try_from(index).ok().and_then(Index::new)
     }
 
     #[inline]
-    pub fn from_usize(index: usize) -> Self {
-        Index::new(IndexInner::try_from(index).unwrap())
+    pub(crate) fn from_usize_unchecked(index: usize) -> Self {
+        Index::new_unchecked(index as IndexInner)
     }
 
     #[inline]
     pub fn index(self) -> usize {
         self.index as usize
+    }
+
+    #[inline]
+    pub(crate) fn inner(self) -> IndexInner {
+        self.index
     }
 }
 
@@ -146,7 +162,7 @@ impl<T> Iterator for IndexRangeIterator<T> {
 
     #[inline]
     fn next(&mut self) -> Option<Index<T>> {
-        Some(Index::new(self.range.next()?))
+        Some(Index::new_unchecked(self.range.next()?))
     }
 
     #[inline]
@@ -158,7 +174,7 @@ impl<T> Iterator for IndexRangeIterator<T> {
 impl<T> DoubleEndedIterator for IndexRangeIterator<T> {
     #[inline]
     fn next_back(&mut self) -> Option<Index<T>> {
-        Some(Index::new(self.range.next_back()?))
+        Some(Index::new_unchecked(self.range.next_back()?))
     }
 }
 

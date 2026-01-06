@@ -37,7 +37,7 @@ impl<T> Arena<T> {
 
     #[inline]
     pub fn next_index(&self) -> Index<T> {
-        Index::from_usize(self.data.len())
+        Index::from_usize(self.data.len()).unwrap()
     }
 
     #[inline]
@@ -65,8 +65,8 @@ impl<T> Arena<T> {
     #[inline]
     pub fn keys(&self) -> IndexRangeIterator<T> {
         IndexRangeIterator::new(
-            Index::new(0),
-            Index::from_usize(self.data.len()),
+            Index::new_unchecked(0),
+            Index::from_usize_unchecked(self.data.len()),
         )
     }
 
@@ -113,7 +113,9 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(i, v)| (Index::from_usize(i), v))
+        self.iter
+            .next()
+            .map(|(i, v)| (Index::from_usize_unchecked(i), v))
     }
 
     #[inline]
@@ -127,7 +129,7 @@ impl<T> DoubleEndedIterator for Iter<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.iter
             .next_back()
-            .map(|(i, v)| (Index::from_usize(i), v))
+            .map(|(i, v)| (Index::from_usize_unchecked(i), v))
     }
 }
 
@@ -152,7 +154,9 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(i, v)| (Index::from_usize(i), v))
+        self.iter
+            .next()
+            .map(|(i, v)| (Index::from_usize_unchecked(i), v))
     }
 
     #[inline]
@@ -166,7 +170,7 @@ impl<T> DoubleEndedIterator for IterMut<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.iter
             .next_back()
-            .map(|(i, v)| (Index::from_usize(i), v))
+            .map(|(i, v)| (Index::from_usize_unchecked(i), v))
     }
 }
 

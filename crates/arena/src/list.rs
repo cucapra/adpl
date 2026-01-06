@@ -24,8 +24,8 @@ impl<T> List<T> {
 
     fn from_range(start: usize, end: usize) -> Self {
         List {
-            start: NonMaxIndex::new(Index::from_usize(start)).unwrap(),
-            end: NonMaxIndex::new(Index::from_usize(end)).unwrap(),
+            start: Index::from_usize(start).and_then(NonMaxIndex::new).unwrap(),
+            end: Index::from_usize(end).and_then(NonMaxIndex::new).unwrap(),
             phantom: PhantomData,
         }
     }
