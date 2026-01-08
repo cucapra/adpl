@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::{fmt, ops};
@@ -49,6 +50,20 @@ impl<T> PartialEq for NonMaxIndex<T> {
 }
 
 impl<T> Eq for NonMaxIndex<T> {}
+
+impl<T> PartialOrd for NonMaxIndex<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for NonMaxIndex<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.inner.cmp(&other.inner).reverse()
+    }
+}
 
 impl<T> ops::Sub for NonMaxIndex<T> {
     type Output = IndexInner;

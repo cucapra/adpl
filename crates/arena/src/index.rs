@@ -104,6 +104,22 @@ pub struct IndexRange<T> {
     pub end: Index<T>,
 }
 
+impl<T> IndexRange<T> {
+    #[inline]
+    pub fn len(self) -> usize {
+        if self.start.index < self.end.index {
+            (self.end.index - self.start.index) as usize
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    pub fn is_empty(self) -> bool {
+        self.start.index >= self.end.index
+    }
+}
+
 impl<T> Clone for IndexRange<T> {
     #[inline]
     fn clone(&self) -> Self {

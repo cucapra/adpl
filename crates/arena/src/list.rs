@@ -39,6 +39,11 @@ impl<T> List<T> {
     pub fn len(self) -> usize {
         (self.end - self.start) as usize
     }
+
+    #[inline]
+    pub fn is_empty(self) -> bool {
+        self.start == self.end
+    }
 }
 
 impl<T> Clone for List<T> {
@@ -49,6 +54,13 @@ impl<T> Clone for List<T> {
 }
 
 impl<T> Copy for List<T> {}
+
+impl<T> Default for List<T> {
+    #[inline]
+    fn default() -> Self {
+        List::new()
+    }
+}
 
 impl<T> fmt::Debug for List<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
