@@ -1,7 +1,7 @@
 use std::iter::{self, FusedIterator};
 use std::{ops, slice};
 
-use crate::{Index, IndexRangeIterator};
+use crate::{Index, IndexRange, IndexRangeIterator};
 
 pub struct Arena<T> {
     data: Vec<T>,
@@ -51,6 +51,18 @@ impl<T> Arena<T> {
         self.data.push(value);
 
         index
+    }
+
+    #[inline]
+    pub fn extend<I>(&mut self, iter: I) -> IndexRange<T>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let start = self.next_index();
+        self.data.extend(iter);
+        let end = self.next_index();
+
+        IndexRange { start, end }
     }
 
     #[inline]
@@ -106,6 +118,22 @@ impl<T> ops::IndexMut<Index<T>> for Arena<T> {
     #[inline]
     fn index_mut(&mut self, index: Index<T>) -> &mut T {
         &mut self.data[index.index()]
+    }
+}
+
+impl<T> ops::Index<IndexRange<T>> for Arena<T> {
+    type Output = [T];
+
+    #[inline]
+    fn index(&self, index: IndexRange<T>) -> &[T] {
+        &self.data[index.start.index()..index.end.index()]
+    }
+}
+
+impl<T> ops::IndexMut<IndexRange<T>> for Arena<T> {
+    #[inline]
+    fn index_mut(&mut self, index: IndexRange<T>) -> &mut [T] {
+        &mut self.data[index.start.index()..index.end.index()]
     }
 }
 

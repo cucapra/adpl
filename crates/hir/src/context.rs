@@ -22,6 +22,15 @@ impl Context {
     pub fn new() -> Self {
         Context::default()
     }
+
+    #[allow(private_bounds)]
+    #[inline]
+    pub fn add<T>(&mut self, value: T) -> Index<T>
+    where
+        Context: Store<T>,
+    {
+        self.mut_arena().push(value)
+    }
 }
 
 impl<T> ops::Index<Index<T>> for Context

@@ -1,5 +1,6 @@
 use std::io::{self, IsTerminal};
 use std::ops::Range;
+use std::sync::LazyLock;
 
 use codespan_reporting::diagnostic::{Diagnostic as InnerDiagnostic, Label};
 use codespan_reporting::files::SimpleFile;
@@ -59,18 +60,16 @@ impl Diagnostic {
     }
 }
 
-impl From<io::Error> for Diagnostic {
-    fn from(err: io::Error) -> Self {
-        Diagnostic::error().with_message(err.to_string())
-    }
-}
-
 pub struct Reporter<'src> {
     file: SimpleFile<&'src str, &'src str>,
     writer: StandardStream,
 }
 
 impl<'src> Reporter<'src> {
+    pub fn early() -> Reporter<'static> {
+        Reporter::new("", "")
+    }
+
     pub fn new(filename: &'src str, source: &'src str) -> Reporter<'src> {
         let choice = if io::stderr().is_terminal() {
             ColorChoice::Auto
@@ -84,13 +83,23 @@ impl<'src> Reporter<'src> {
         }
     }
 
-    pub fn emit(&mut self, diagnostic: &Diagnostic) {
+    pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         term::emit(
             &mut self.writer,
-            &Config::default(),
+            Reporter::config(),
             &self.file,
             &diagnostic.0,
         )
         .unwrap();
+    }
+
+    pub fn emit<D: Into<Diagnostic>>(&mut self, diagnostic: D) {
+        self.emit_diagnostic(&diagnostic.into());
+    }
+
+    fn config() -> &'static Config {
+        static CONFIG: LazyLock<Config> = LazyLock::new(Config::default);
+
+        &CONFIG
     }
 }

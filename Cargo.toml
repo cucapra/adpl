@@ -8,6 +8,7 @@ argh.workspace = true
 
 adpl-arena.workspace = true
 adpl-ast.workspace = true
+adpl-ast-lowering.workspace = true
 adpl-hir.workspace = true
 adpl-lex.workspace = true
 adpl-parse.workspace = true
@@ -25,10 +26,12 @@ argh = "0.1"
 chumsky = { version = "0.10", features = ["pratt"] }
 codespan-reporting = "0.11"
 logos = "0.15"
+stacker = "0.1"
 symbol_table = { version = "0.4", features = ["global"] }
 
 adpl-arena = { path = "crates/arena" }
 adpl-ast = { path = "crates/ast" }
+adpl-ast-lowering = { path = "crates/ast_lowering" }
 adpl-hir = { path = "crates/hir" }
 adpl-lex = { path = "crates/lex" }
 adpl-parse = { path = "crates/parse" }

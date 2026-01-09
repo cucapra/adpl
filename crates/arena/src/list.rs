@@ -1,6 +1,6 @@
-use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{self, Range};
+use std::{fmt, iter};
 
 use crate::index::{Index, IndexInner, IndexSlice, InnerSlice};
 use crate::option::NonMaxIndex;
@@ -112,6 +112,20 @@ impl IndexArena {
     {
         let start = self.data.len();
         self.data.extend(iter.into_iter().map(Index::inner));
+
+        List::from_range(start, self.data.len())
+    }
+
+    pub fn extend_zeroed<T>(&mut self, len: usize) -> List<T> {
+        let start = self.data.len();
+        self.data.extend(iter::repeat_n(0, len));
+
+        List::from_range(start, self.data.len())
+    }
+
+    pub fn extend_invalid<T>(&mut self, len: usize) -> List<T> {
+        let start = self.data.len();
+        self.data.extend(iter::repeat_n(IndexInner::MAX, len));
 
         List::from_range(start, self.data.len())
     }

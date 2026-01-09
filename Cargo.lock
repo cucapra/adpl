@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "adpl-arena",
  "adpl-ast",
+ "adpl-ast-lowering",
  "adpl-hir",
  "adpl-lex",
  "adpl-parse",
@@ -24,6 +25,16 @@ name = "adpl-ast"
 version = "0.1.0"
 dependencies = [
  "symbol_table",
+]
+
+[[package]]
+name = "adpl-ast-lowering"
+version = "0.1.0"
+dependencies = [
+ "adpl-ast",
+ "adpl-hir",
+ "adpl-util",
+ "stacker",
 ]
 
 [[package]]

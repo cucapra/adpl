@@ -109,18 +109,18 @@ pub enum ExprKind {
     Record(Box<Constructor>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Id {
-    pub name: Symbol,
+    pub symbol: Symbol,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Literal {
     pub value: u64,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct UnaryOp {
     pub kind: UnaryKind,
     pub span: Span,
@@ -132,7 +132,7 @@ pub enum UnaryKind {
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct BinaryOp {
     pub kind: BinaryKind,
     pub span: Span,

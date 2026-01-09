@@ -11,8 +11,8 @@ use chumsky::{IterParser as _, Parser, select};
 use adpl_ast as ast;
 use adpl_lex::{Lexer, Token};
 
-type Span = Range<usize>;
-type Error = Cheap<Span>;
+pub type Span = Range<usize>;
+pub type Error = Cheap<Span>;
 
 enum AtomTail {
     Call(Vec<ast::Expression>),
@@ -25,8 +25,8 @@ where
     'src: 'tk,
 {
     let id = select! {
-        Token::Ident(name) = e => ast::Id {
-            name: ast::Symbol::from(name),
+        Token::Ident(symbol) = e => ast::Id {
+            symbol: ast::Symbol::from(symbol),
             span: ast::Span::from(e.span()),
         },
     };

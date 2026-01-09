@@ -1,12 +1,14 @@
 mod cli;
+mod errors;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::{fs, io};
 
+use adpl::ast_lowering::lower_ast;
 use adpl::parse::parse;
-use adpl::util::{Diagnostic, Reporter};
+use adpl::util::Reporter;
 
 use cli::Opts;
 
@@ -30,7 +32,7 @@ fn main() -> ExitCode {
     let (filename, source) = match read_input(&opts.file) {
         Ok(ok) => ok,
         Err(err) => {
-            Reporter::new("", "").emit(&Diagnostic::from(err));
+            Reporter::early().emit(errors::IoError(err));
 
             return ExitCode::FAILURE;
         }
@@ -38,20 +40,20 @@ fn main() -> ExitCode {
 
     let mut reporter = Reporter::new(&filename, &source);
 
-    let _ = match parse(&source) {
+    let ast = match parse(&source) {
         Ok(ok) => ok,
         Err(errors) => {
             for err in errors {
-                reporter.emit(
-                    &Diagnostic::error()
-                        .with_message("syntax error")
-                        .with_primary(err.span().clone(), "syntax error"),
-                );
+                reporter.emit(errors::ParseError(err));
             }
 
             return ExitCode::FAILURE;
         }
     };
+
+    if lower_ast(&ast, &mut reporter).is_none() {
+        return ExitCode::FAILURE;
+    }
 
     ExitCode::SUCCESS
 }

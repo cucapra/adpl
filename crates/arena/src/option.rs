@@ -81,3 +81,15 @@ impl<T> fmt::Debug for NonMaxIndex<T> {
             .finish()
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct TryFromIndexError;
+
+impl<T> TryFrom<Index<T>> for NonMaxIndex<T> {
+    type Error = TryFromIndexError;
+
+    #[inline]
+    fn try_from(value: Index<T>) -> Result<Self, Self::Error> {
+        NonMaxIndex::new(value).ok_or(TryFromIndexError)
+    }
+}
