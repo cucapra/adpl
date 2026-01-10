@@ -34,7 +34,6 @@ dependencies = [
  "adpl-ast",
  "adpl-hir",
  "adpl-util",
- "stacker",
 ]
 
 [[package]]
@@ -66,6 +65,7 @@ name = "adpl-util"
 version = "0.1.0"
 dependencies = [
  "codespan-reporting",
+ "stacker",
 ]
 
 [[package]]

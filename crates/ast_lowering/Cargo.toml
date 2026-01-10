@@ -4,8 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-stacker.workspace = true
-
 adpl-ast.workspace = true
 adpl-hir.workspace = true
 adpl-util.workspace = true

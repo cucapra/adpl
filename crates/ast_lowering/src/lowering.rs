@@ -3,7 +3,7 @@ use std::iter;
 
 use adpl_ast as ast;
 use adpl_hir as hir;
-use adpl_util::Reporter;
+use adpl_util::{Reporter, with_sufficient_stack};
 
 use crate::errors;
 
@@ -311,47 +311,51 @@ impl LoweringContext<'_, '_> {
         &mut self,
         expr: &ast::Expression,
     ) -> Result<hir::Index<hir::Expression>> {
-        let kind = match &expr.kind {
-            ast::ExprKind::Id(name) => {
-                let local = self.find_name(name.symbol).ok_or_else(|| {
-                    if let Some(global) = self.globals.get(&name.symbol) {
-                        self.reporter.emit(errors::UnexpectedItem {
-                            name,
-                            kind: global.kind(),
-                        });
-                    } else {
-                        self.reporter.emit(errors::UndefinedName { name });
-                    }
+        with_sufficient_stack(|| {
+            let kind = match &expr.kind {
+                ast::ExprKind::Id(name) => {
+                    let Some(local) = self.find_name(name.symbol) else {
+                        if let Some(global) = self.globals.get(&name.symbol) {
+                            self.reporter.emit(errors::UnexpectedItem {
+                                name,
+                                kind: global.kind(),
+                            });
+                        } else {
+                            self.reporter.emit(errors::UndefinedName { name });
+                        }
 
-                    LoweringError
-                })?;
+                        return Err(LoweringError);
+                    };
 
-                hir::ExprKind::Id(local)
-            }
-            ast::ExprKind::Lit(literal) => hir::ExprKind::Lit(literal.clone()),
-            ast::ExprKind::Field(expr, name) => {
-                hir::ExprKind::Field(self.lower_expression(expr)?, *name)
-            }
-            ast::ExprKind::Unary(op, expr) => {
-                hir::ExprKind::Unary(*op, self.lower_expression(expr)?)
-            }
-            ast::ExprKind::Binary(op, lhs, rhs) => hir::ExprKind::Binary(
-                *op,
-                self.lower_expression(lhs)?,
-                self.lower_expression(rhs)?,
-            ),
-            ast::ExprKind::Call(call) => {
-                hir::ExprKind::Call(self.lower_call(call)?)
-            }
-            ast::ExprKind::Record(cons) => {
-                hir::ExprKind::Record(self.lower_constructor(cons)?)
-            }
-        };
+                    hir::ExprKind::Id(local)
+                }
+                ast::ExprKind::Lit(literal) => {
+                    hir::ExprKind::Lit(literal.clone())
+                }
+                ast::ExprKind::Field(expr, name) => {
+                    hir::ExprKind::Field(self.lower_expression(expr)?, *name)
+                }
+                ast::ExprKind::Unary(op, expr) => {
+                    hir::ExprKind::Unary(*op, self.lower_expression(expr)?)
+                }
+                ast::ExprKind::Binary(op, lhs, rhs) => hir::ExprKind::Binary(
+                    *op,
+                    self.lower_expression(lhs)?,
+                    self.lower_expression(rhs)?,
+                ),
+                ast::ExprKind::Call(call) => {
+                    hir::ExprKind::Call(self.lower_call(call)?)
+                }
+                ast::ExprKind::Record(cons) => {
+                    hir::ExprKind::Record(self.lower_constructor(cons)?)
+                }
+            };
 
-        Ok(self.ctx.add(hir::Expression {
-            kind,
-            span: expr.span,
-        }))
+            Ok(self.ctx.add(hir::Expression {
+                kind,
+                span: expr.span,
+            }))
+        })
     }
 
     fn lower_call(&mut self, call: &ast::Call) -> Result<hir::Call> {

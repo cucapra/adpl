@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 codespan-reporting.workspace = true
+stacker.workspace = true
