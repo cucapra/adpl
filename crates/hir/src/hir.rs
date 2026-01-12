@@ -20,6 +20,7 @@ pub struct Field {
 #[derive(Debug)]
 pub struct Type {
     pub name: Id,
+    pub decl: Index<Record>,
     pub args: List<Expression>,
     pub span: Span,
 }

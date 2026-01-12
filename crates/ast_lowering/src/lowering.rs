@@ -122,14 +122,54 @@ impl LoweringContext<'_, '_> {
     }
 
     fn lower_type(&mut self, ty: &ast::Type) -> Result<hir::Index<hir::Type>> {
+        let decl = self
+            .globals
+            .get(&ty.name.symbol)
+            .ok_or_else(|| {
+                self.reporter.emit(errors::KindNotFound {
+                    name: &ty.name,
+                    kind: "type",
+                });
+
+                LoweringError
+            })
+            .and_then(|&name| match name {
+                Global::Record(record) => Ok(record),
+                Global::Def(_) => {
+                    self.reporter.emit(errors::UnexpectedKind {
+                        name: &ty.name,
+                        expected: "type",
+                        found: "function",
+                        label: "not a type",
+                    });
+
+                    Err(LoweringError)
+                }
+            })?;
+
         let args = self.ctx.lists.extend_zeroed(ty.args.len());
 
         for (i, arg) in ty.args.iter().enumerate() {
             self.ctx[args][i] = self.lower_expression(arg)?;
         }
 
+        let declared_param_count = self.ctx[decl].params.len();
+        let supplied_param_count = ty.args.len();
+
+        if declared_param_count != supplied_param_count {
+            self.reporter.emit(errors::ArityMismatch {
+                callee: &ty.name,
+                expected: declared_param_count,
+                found: supplied_param_count,
+                what: "generic argument",
+            });
+
+            return Err(LoweringError);
+        }
+
         Ok(self.ctx.add(hir::Type {
             name: ty.name,
+            decl,
             args,
             span: ty.span,
         }))
