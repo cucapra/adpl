@@ -1,6 +1,6 @@
 use std::ops;
 
-use adpl_arena::{Arena, Index, IndexArena, List};
+use adpl_arena::{Arena, Index, IndexArena, IndexRange, List};
 
 use crate::hir;
 
@@ -52,6 +52,28 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: Index<T>) -> &mut T {
+        self.mut_arena().index_mut(index)
+    }
+}
+
+impl<T> ops::Index<IndexRange<T>> for Context
+where
+    Context: Store<T>,
+{
+    type Output = [T];
+
+    #[inline]
+    fn index(&self, index: IndexRange<T>) -> &[T] {
+        self.arena().index(index)
+    }
+}
+
+impl<T> ops::IndexMut<IndexRange<T>> for Context
+where
+    Context: Store<T>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: IndexRange<T>) -> &mut [T] {
         self.mut_arena().index_mut(index)
     }
 }

@@ -12,6 +12,7 @@ dependencies = [
  "adpl-hir",
  "adpl-lex",
  "adpl-parse",
+ "adpl-typing",
  "adpl-util",
  "argh",
 ]
@@ -58,6 +59,15 @@ dependencies = [
  "adpl-ast",
  "adpl-lex",
  "chumsky",
+]
+
+[[package]]
+name = "adpl-typing"
+version = "0.1.0"
+dependencies = [
+ "adpl-arena",
+ "adpl-hir",
+ "adpl-util",
 ]
 
 [[package]]

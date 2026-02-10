@@ -12,6 +12,7 @@ adpl-ast-lowering.workspace = true
 adpl-hir.workspace = true
 adpl-lex.workspace = true
 adpl-parse.workspace = true
+adpl-typing.workspace = true
 adpl-util.workspace = true
 
 [workspace]
@@ -35,4 +36,5 @@ adpl-ast-lowering = { path = "crates/ast_lowering" }
 adpl-hir = { path = "crates/hir" }
 adpl-lex = { path = "crates/lex" }
 adpl-parse = { path = "crates/parse" }
+adpl-typing = { path = "crates/typing" }
 adpl-util = { path = "crates/util" }

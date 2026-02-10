@@ -8,6 +8,7 @@ use std::{fs, io};
 
 use adpl::ast_lowering::lower_ast;
 use adpl::parse::parse;
+use adpl::typing::check_hir;
 use adpl::util::Reporter;
 
 use cli::Opts;
@@ -51,9 +52,13 @@ fn main() -> ExitCode {
         }
     };
 
-    if lower_ast(&ast, &mut reporter).is_none() {
+    let Some(hir) = lower_ast(&ast, &mut reporter) else {
         return ExitCode::FAILURE;
-    }
+    };
+
+    let Some(_) = check_hir(&hir, &mut reporter) else {
+        return ExitCode::FAILURE;
+    };
 
     ExitCode::SUCCESS
 }

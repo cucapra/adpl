@@ -132,6 +132,15 @@ pub enum UnaryKind {
     Not,
 }
 
+impl UnaryKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Neg => "-",
+            Self::Not => "!",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct BinaryOp {
     pub kind: BinaryKind,
@@ -153,6 +162,26 @@ pub enum BinaryKind {
     Ge,
     Lt,
     Le,
+}
+
+impl BinaryKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Add => "+",
+            Self::Sub => "-",
+            Self::Mul => "*",
+            Self::Div => "/",
+            Self::Pow => "^",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
+            Self::Eq => "=",
+            Self::Ne => "!=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+        }
+    }
 }
 
 #[derive(Debug)]

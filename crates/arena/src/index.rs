@@ -14,6 +14,7 @@ pub struct Index<T> {
 }
 
 impl<T> Index<T> {
+    pub const ZERO: Self = Index::new_unchecked(0);
     pub const INVALID: Self = Index::new_unchecked(IndexInner::MAX);
 
     #[inline]

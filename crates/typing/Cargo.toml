@@ -1,0 +1,9 @@
+[package]
+name = "adpl-typing"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+adpl-arena.workspace = true
+adpl-hir.workspace = true
+adpl-util.workspace = true
