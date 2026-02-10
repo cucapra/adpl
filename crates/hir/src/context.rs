@@ -6,6 +6,7 @@ use crate::hir;
 
 #[derive(Default)]
 pub struct Context {
+    pub items: Arena<hir::Item>,
     pub records: Arena<hir::Record>,
     pub fields: Arena<hir::Field>,
     pub defs: Arena<hir::Definition>,
@@ -93,6 +94,7 @@ macro_rules! store_impl {
     };
 }
 
+store_impl!(items, hir::Item);
 store_impl!(records, hir::Record);
 store_impl!(fields, hir::Field);
 store_impl!(defs, hir::Definition);

@@ -40,14 +40,16 @@ struct LoweringContext<'a, 'src> {
 impl LoweringContext<'_, '_> {
     fn lower_file(&mut self, file: &ast::File) -> Result<()> {
         for item in &file.items {
-            match &item.kind {
+            let item = match &item.kind {
                 ast::ItemKind::Record(record) => {
-                    self.lower_record(record)?;
+                    hir::Item::Record(self.lower_record(record)?)
                 }
                 ast::ItemKind::Def(def) => {
-                    self.lower_definition(def)?;
+                    hir::Item::Def(self.lower_definition(def)?)
                 }
-            }
+            };
+
+            self.ctx.add(item);
         }
 
         Ok(())

@@ -4,6 +4,12 @@ pub use adpl_ast::{
 };
 
 #[derive(Debug)]
+pub enum Item {
+    Record(Index<Record>),
+    Def(Index<Definition>),
+}
+
+#[derive(Debug)]
 pub struct Record {
     pub name: Id,
     pub params: IndexRange<Local>,
