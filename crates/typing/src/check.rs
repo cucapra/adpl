@@ -536,16 +536,29 @@ impl DefinitionContext<'_, '_> {
         }
 
         if let Some(block) = def.body {
-            self.check_block(block)?;
+            let termination = self.check_block(block)?;
+
+            if matches!(termination, Termination::Unit) {
+                self.icx
+                    .reporter
+                    .emit(errors::MissingReturn { def: &def.name });
+
+                return Err(TypingError);
+            }
         }
 
         Ok(())
     }
 
-    fn check_statement(&mut self, stmt: Index<hir::Statement>) -> Result<()> {
+    fn check_statement(
+        &mut self,
+        stmt: Index<hir::Statement>,
+    ) -> Result<Termination> {
         match self.icx.hir[stmt].kind {
             hir::StmtKind::Assign(local, expr) => {
                 self.icx.tcx.env[local] = self.icx.check_expression(expr)?;
+
+                Ok(Termination::Unit)
             }
             hir::StmtKind::Return(expr) => {
                 let expected = self.icx.tcx.signatures[self.def].1;
@@ -563,20 +576,51 @@ impl DefinitionContext<'_, '_> {
 
                     return Err(TypingError);
                 }
-            }
-            hir::StmtKind::Unsafe(block) => {
-                self.check_block(block)?;
-            }
-        }
 
-        Ok(())
+                Ok(Termination::Void(stmt))
+            }
+            hir::StmtKind::Unsafe(block) => self.check_block(block),
+        }
     }
 
-    fn check_block(&mut self, block: List<hir::Statement>) -> Result<()> {
+    fn check_block(
+        &mut self,
+        block: List<hir::Statement>,
+    ) -> Result<Termination> {
+        let mut glb = Termination::Unit;
+        let mut seen_unreachable = false;
+
         for &stmt in &self.icx.hir[block] {
-            self.check_statement(stmt)?;
+            let termination = self.check_statement(stmt)?;
+
+            if let Termination::Void(divergent) = glb
+                && !seen_unreachable
+            {
+                self.icx.reporter.emit(errors::WarnUnreachable {
+                    divergent: &self.icx.hir[divergent],
+                    unreachable: &self.icx.hir[stmt],
+                });
+
+                seen_unreachable = true;
+            }
+
+            glb = glb.glb(termination);
         }
 
-        Ok(())
+        Ok(glb)
+    }
+}
+
+enum Termination {
+    Unit,
+    Void(Index<hir::Statement>),
+}
+
+impl Termination {
+    fn glb(self, other: Termination) -> Termination {
+        match (self, other) {
+            (Self::Void(stmt), _) | (_, Self::Void(stmt)) => Self::Void(stmt),
+            (Self::Unit, Self::Unit) => Self::Unit,
+        }
     }
 }

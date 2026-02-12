@@ -206,7 +206,10 @@ where
                 .ignore_then(block)
                 .map(ast::StmtKind::Unsafe),
         ))
-        .map(|kind| ast::Statement { kind });
+        .map_with(|kind, e| ast::Statement {
+            kind,
+            span: ast::Span::from(e.span()),
+        });
 
         statement
             .repeated()

@@ -17,6 +17,20 @@ impl From<WarnNotChecked<'_>> for Diagnostic {
     }
 }
 
+pub struct WarnUnreachable<'a> {
+    pub divergent: &'a hir::Statement,
+    pub unreachable: &'a hir::Statement,
+}
+
+impl From<WarnUnreachable<'_>> for Diagnostic {
+    fn from(value: WarnUnreachable) -> Self {
+        Diagnostic::warning()
+            .with_message("unreachable statement")
+            .with_secondary(value.divergent.span, "execution ends here")
+            .with_primary(value.unreachable.span, "unreachable statement")
+    }
+}
+
 pub struct NonConstInGeneric<'a> {
     pub expr: &'a hir::Expression,
     pub secondary: Option<&'a hir::Expression>,
@@ -159,5 +173,23 @@ impl From<UnexpectedField<'_>> for Diagnostic {
                 value.field.symbol, value.ty.symbol,
             ))
             .with_primary(value.field.span, "no such field")
+    }
+}
+
+pub struct MissingReturn<'a> {
+    pub def: &'a hir::Id,
+}
+
+impl From<MissingReturn<'_>> for Diagnostic {
+    fn from(value: MissingReturn) -> Self {
+        Diagnostic::error()
+            .with_message(format!(
+                "function `{}` terminates without returning a value",
+                value.def.symbol,
+            ))
+            .with_primary(
+                value.def.span,
+                "body ends without a `return` statement",
+            )
     }
 }

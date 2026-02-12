@@ -53,6 +53,7 @@ pub struct Parameter {
 #[derive(Debug)]
 pub struct Statement {
     pub kind: StmtKind,
+    pub span: Span,
 }
 
 #[derive(Debug)]

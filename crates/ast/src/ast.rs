@@ -77,6 +77,7 @@ pub struct Block(pub Vec<Statement>);
 #[derive(Debug)]
 pub struct Statement {
     pub kind: StmtKind,
+    pub span: Span,
 }
 
 #[derive(Debug)]

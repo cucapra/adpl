@@ -333,7 +333,10 @@ impl LoweringContext<'_, '_> {
             }
         };
 
-        Ok(self.ctx.add(hir::Statement { kind }))
+        Ok(self.ctx.add(hir::Statement {
+            kind,
+            span: stmt.span,
+        }))
     }
 
     fn lower_block(
