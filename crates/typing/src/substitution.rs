@@ -29,6 +29,22 @@ impl Foldable<Index<Expression>> for Index<Type> {
     {
         match ctx.types[self] {
             Type::Real | Type::UnsizedInteger | Type::Bool => self,
+            Type::Int(width) => {
+                let width = width.fold_with(&mut ctx.exprs, folder);
+
+                ctx.types.intern(Type::Int(width))
+            }
+            Type::UInt(width) => {
+                let width = width.fold_with(&mut ctx.exprs, folder);
+
+                ctx.types.intern(Type::UInt(width))
+            }
+            Type::Ieee { exponent, fraction } => {
+                let exponent = exponent.fold_with(&mut ctx.exprs, folder);
+                let fraction = fraction.fold_with(&mut ctx.exprs, folder);
+
+                ctx.types.intern(Type::Ieee { exponent, fraction })
+            }
             Type::Record { name, ref args } => {
                 let args = args
                     .iter()

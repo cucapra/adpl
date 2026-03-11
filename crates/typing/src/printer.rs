@@ -42,18 +42,22 @@ impl Pretty for Index<ty::Type> {
             ty::Type::Real => write!(w, "real"),
             ty::Type::UnsizedInteger => write!(w, "integer"),
             ty::Type::Bool => write!(w, "bool"),
+            ty::Type::Int(width) => write!(w, "int[{}]", width.pretty(p)),
+            ty::Type::UInt(width) => write!(w, "uint[{}]", width.pretty(p)),
+            ty::Type::Ieee {
+                exponent: e,
+                fraction: f,
+            } => write!(w, "ieee[{}, {}]", e.pretty(p), f.pretty(p)),
             ty::Type::Record { name, ref args } => {
                 write!(w, "{}", p.hir[name].name.symbol)?;
 
                 match args.as_ref() {
                     [] => {}
                     [first, rest @ ..] => {
-                        write!(w, "[")?;
-                        first.write_pretty(p, w)?;
+                        write!(w, "[{}", first.pretty(p))?;
 
                         for arg in rest {
-                            write!(w, ", ")?;
-                            arg.write_pretty(p, w)?;
+                            write!(w, ", {}", arg.pretty(p))?;
                         }
 
                         write!(w, "]")?;

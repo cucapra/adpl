@@ -45,6 +45,12 @@ pub enum Type {
     Real,
     UnsizedInteger,
     Bool,
+    Int(Index<Expression>),
+    UInt(Index<Expression>),
+    Ieee {
+        exponent: Index<Expression>,
+        fraction: Index<Expression>,
+    },
     Record {
         name: Index<hir::Record>,
         args: Box<[Index<Expression>]>,

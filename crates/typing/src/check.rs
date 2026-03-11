@@ -103,16 +103,39 @@ struct ItemContext<'a, 'src> {
 impl ItemContext<'_, '_> {
     fn lower_type(&mut self, ty: Index<hir::Type>) -> Result<Index<ty::Type>> {
         let ty = &self.hir[ty];
+        let args = &self.hir[ty.args];
 
-        let args = self.hir[ty.args]
-            .iter()
-            .map(|&expr| self.lower_generic_argument(expr))
-            .collect::<Result<_>>()?;
+        let ty = match ty.kind {
+            hir::TypeKind::Bool => self.tcx.arenas.prims.bool,
+            hir::TypeKind::Int => {
+                let width = self.lower_generic_argument(args[0])?;
 
-        Ok(self.tcx.arenas.intern(ty::Type::Record {
-            name: ty.decl,
-            args,
-        }))
+                self.tcx.arenas.intern(ty::Type::Int(width))
+            }
+            hir::TypeKind::UInt => {
+                let width = self.lower_generic_argument(args[0])?;
+
+                self.tcx.arenas.intern(ty::Type::UInt(width))
+            }
+            hir::TypeKind::Ieee => {
+                let exponent = self.lower_generic_argument(args[0])?;
+                let fraction = self.lower_generic_argument(args[1])?;
+
+                self.tcx
+                    .arenas
+                    .intern(ty::Type::Ieee { exponent, fraction })
+            }
+            hir::TypeKind::Record(name) => {
+                let args = args
+                    .iter()
+                    .map(|&expr| self.lower_generic_argument(expr))
+                    .collect::<Result<_>>()?;
+
+                self.tcx.arenas.intern(ty::Type::Record { name, args })
+            }
+        };
+
+        Ok(ty)
     }
 
     fn lower_generic_argument(

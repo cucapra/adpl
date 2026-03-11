@@ -147,7 +147,7 @@
         },
         {
           "name": "storage.type.adpl",
-          "match": "\\b(def|ieee|int|struct|uint)\\b"
+          "match": "\\b(bool|def|ieee|int|struct|uint)\\b"
         },
         {
           "name": "storage.modifier.adpl",

@@ -5,6 +5,7 @@ use adpl_ast as ast;
 use adpl_hir as hir;
 use adpl_util::{Reporter, with_sufficient_stack};
 
+use crate::builtins::Primitive;
 use crate::errors;
 
 pub fn lower_ast(
@@ -39,6 +40,8 @@ struct LoweringContext<'a, 'src> {
 
 impl LoweringContext<'_, '_> {
     fn lower_file(&mut self, file: &ast::File) -> Result<()> {
+        self.add_builtins();
+
         for item in &file.items {
             let item = match &item.kind {
                 ast::ItemKind::Record(record) => {
@@ -124,7 +127,7 @@ impl LoweringContext<'_, '_> {
     }
 
     fn lower_type(&mut self, ty: &ast::Type) -> Result<hir::Index<hir::Type>> {
-        let decl = self
+        let (kind, params) = self
             .globals
             .get(&ty.name.symbol)
             .ok_or_else(|| {
@@ -136,7 +139,11 @@ impl LoweringContext<'_, '_> {
                 LoweringError
             })
             .and_then(|&name| match name {
-                Global::Record(record) => Ok(record),
+                Global::Builtin(prim) => Ok((prim.into(), prim.params())),
+                Global::Record(record) => Ok((
+                    hir::TypeKind::Record(record),
+                    self.ctx[record].params.len(),
+                )),
                 Global::Def(_) => {
                     self.reporter.emit(errors::UnexpectedKind {
                         name: &ty.name,
@@ -155,14 +162,11 @@ impl LoweringContext<'_, '_> {
             self.ctx[args][i] = self.lower_expression(arg)?;
         }
 
-        let declared_param_count = self.ctx[decl].params.len();
-        let supplied_param_count = ty.args.len();
-
-        if declared_param_count != supplied_param_count {
+        if params != ty.args.len() {
             self.reporter.emit(errors::ArityMismatch {
                 callee: &ty.name,
-                expected: declared_param_count,
-                found: supplied_param_count,
+                expected: params,
+                found: ty.args.len(),
                 what: "generic argument",
             });
 
@@ -171,7 +175,7 @@ impl LoweringContext<'_, '_> {
 
         Ok(self.ctx.add(hir::Type {
             name: ty.name,
-            decl,
+            kind,
             args,
             span: ty.span,
         }))
@@ -416,17 +420,17 @@ impl LoweringContext<'_, '_> {
                 LoweringError
             })
             .and_then(|&name| match name {
-                Global::Record(_) => {
+                Global::Def(def) => Ok(def),
+                Global::Builtin(_) | Global::Record(_) => {
                     self.reporter.emit(errors::UnexpectedKind {
                         name: &call.name,
                         expected: "function",
-                        found: "struct",
-                        label: "struct not callable",
+                        found: "type",
+                        label: "type not callable",
                     });
 
                     Err(LoweringError)
                 }
-                Global::Def(def) => Ok(def),
             })?;
 
         let generics = self.ctx.lists.extend_zeroed(call.generics.len());
@@ -494,11 +498,11 @@ impl LoweringContext<'_, '_> {
             })
             .and_then(|&name| match name {
                 Global::Record(record) => Ok(record),
-                Global::Def(_) => {
+                Global::Builtin(_) | Global::Def(_) => {
                     self.reporter.emit(errors::UnexpectedKind {
                         name: &cons.name,
                         expected: "struct",
-                        found: "function",
+                        found: name.type_kind(),
                         label: "not a struct type",
                     });
 
@@ -573,6 +577,13 @@ impl LoweringContext<'_, '_> {
         })
     }
 
+    fn add_builtins(&mut self) {
+        for prim in Primitive::VARIANTS {
+            self.globals
+                .insert(prim.as_str().into(), Global::Builtin(prim));
+        }
+    }
+
     fn add_global(&mut self, name: &ast::Id, global: Global) -> Result<()> {
         if let Some(prev) = self.globals.insert(name.symbol, global) {
             self.reporter.emit(errors::RedefinedName {
@@ -599,21 +610,31 @@ impl LoweringContext<'_, '_> {
 
 #[derive(Clone, Copy)]
 enum Global {
+    Builtin(Primitive),
     Record(hir::Index<hir::Record>),
     Def(hir::Index<hir::Definition>),
 }
 
 impl Global {
-    fn name(self, ctx: &hir::Context) -> &hir::Id {
+    fn name(self, ctx: &hir::Context) -> Option<&hir::Id> {
         match self {
-            Global::Record(record) => &ctx[record].name,
-            Global::Def(def) => &ctx[def].name,
+            Global::Builtin(_) => None,
+            Global::Record(record) => Some(&ctx[record].name),
+            Global::Def(def) => Some(&ctx[def].name),
         }
     }
 
     fn kind(self) -> &'static str {
         match self {
-            Global::Record(_) => "struct",
+            Global::Builtin(_) | Global::Record(_) => "type",
+            Global::Def(_) => "function",
+        }
+    }
+
+    fn type_kind(self) -> &'static str {
+        match self {
+            Global::Builtin(_) => "builtin type",
+            Global::Record(_) => "struct type",
             Global::Def(_) => "function",
         }
     }

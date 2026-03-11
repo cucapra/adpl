@@ -26,9 +26,18 @@ pub struct Field {
 #[derive(Debug)]
 pub struct Type {
     pub name: Id,
-    pub decl: Index<Record>,
+    pub kind: TypeKind,
     pub args: List<Expression>,
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum TypeKind {
+    Bool,
+    Int,
+    UInt,
+    Ieee,
+    Record(Index<Record>),
 }
 
 #[derive(Debug)]

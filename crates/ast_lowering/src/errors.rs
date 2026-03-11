@@ -51,19 +51,24 @@ impl From<RedeclaredField<'_>> for Diagnostic {
 }
 
 pub struct RedefinedName<'a> {
-    pub first: &'a ast::Id,
+    pub first: Option<&'a ast::Id>,
     pub second: &'a ast::Id,
 }
 
 impl From<RedefinedName<'_>> for Diagnostic {
     fn from(value: RedefinedName) -> Self {
-        Diagnostic::error()
+        let error = Diagnostic::error()
             .with_message(format!(
                 "redefinition of name `{}`",
-                value.first.symbol,
+                value.second.symbol,
             ))
-            .with_secondary(value.first.span, "name first defined here")
-            .with_primary(value.second.span, "name already defined")
+            .with_primary(value.second.span, "name already defined");
+
+        if let Some(first) = value.first {
+            error.with_secondary(first.span, "name first defined here")
+        } else {
+            error
+        }
     }
 }
 
