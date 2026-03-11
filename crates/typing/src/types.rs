@@ -43,7 +43,7 @@ pub enum Expression {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     Real,
-    UnsizedInteger,
+    Integer,
     Bool,
     Int(Index<Expression>),
     UInt(Index<Expression>),
@@ -75,7 +75,7 @@ impl TypeArenas {
 
         let prims = PrimitiveTypes {
             real: types.intern(Type::Real),
-            integer: types.intern(Type::UnsizedInteger),
+            integer: types.intern(Type::Integer),
             bool: types.intern(Type::Bool),
         };
 

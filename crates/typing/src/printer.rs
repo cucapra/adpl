@@ -40,7 +40,7 @@ impl Pretty for Index<ty::Type> {
     ) -> fmt::Result {
         match p.types[self] {
             ty::Type::Real => write!(w, "real"),
-            ty::Type::UnsizedInteger => write!(w, "integer"),
+            ty::Type::Integer => write!(w, "integer"),
             ty::Type::Bool => write!(w, "bool"),
             ty::Type::Int(width) => write!(w, "int[{}]", width.pretty(p)),
             ty::Type::UInt(width) => write!(w, "uint[{}]", width.pretty(p)),

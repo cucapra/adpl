@@ -28,7 +28,7 @@ impl Foldable<Index<Expression>> for Index<Type> {
         F: Folder<Index<Expression>> + ?Sized,
     {
         match ctx.types[self] {
-            Type::Real | Type::UnsizedInteger | Type::Bool => self,
+            Type::Real | Type::Integer | Type::Bool => self,
             Type::Int(width) => {
                 let width = width.fold_with(&mut ctx.exprs, folder);
 

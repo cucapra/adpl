@@ -19,8 +19,8 @@ impl Lub for Index<Type> {
         }
 
         match (&ctx[self], &ctx[rhs]) {
-            (Type::Real, Type::UnsizedInteger) => Some(self),
-            (Type::UnsizedInteger, Type::Real) => Some(rhs),
+            (Type::Real, Type::Integer) => Some(self),
+            (Type::Integer, Type::Real) => Some(rhs),
             _ => None,
         }
     }
@@ -51,7 +51,7 @@ impl Overloaded for hir::UnaryKind {
     ) -> Option<Index<Type>> {
         match self {
             hir::UnaryKind::Neg => match &ctx[lub] {
-                Type::Real | Type::UnsizedInteger => Some(lub),
+                Type::Real | Type::Integer => Some(lub),
                 _ => None,
             },
             hir::UnaryKind::Not => match &ctx[lub] {
@@ -72,25 +72,23 @@ impl Overloaded for hir::BinaryKind {
             hir::BinaryKind::Add
             | hir::BinaryKind::Sub
             | hir::BinaryKind::Mul => match &ctx[lub] {
-                Type::Real | Type::UnsizedInteger => Some(lub),
+                Type::Real | Type::Integer => Some(lub),
                 _ => None,
             },
             hir::BinaryKind::Div | hir::BinaryKind::Pow => match &ctx[lub] {
-                Type::Real | Type::UnsizedInteger => Some(ctx.prims.real),
+                Type::Real | Type::Integer => Some(ctx.prims.real),
                 _ => None,
             },
             hir::BinaryKind::Shl | hir::BinaryKind::Shr => None,
             hir::BinaryKind::Eq | hir::BinaryKind::Ne => match &ctx[lub] {
-                Type::Real | Type::UnsizedInteger | Type::Bool => {
-                    Some(ctx.prims.bool)
-                }
+                Type::Real | Type::Integer | Type::Bool => Some(ctx.prims.bool),
                 _ => None,
             },
             hir::BinaryKind::Gt
             | hir::BinaryKind::Ge
             | hir::BinaryKind::Lt
             | hir::BinaryKind::Le => match &ctx[lub] {
-                Type::Real | Type::UnsizedInteger => Some(ctx.prims.bool),
+                Type::Real | Type::Integer => Some(ctx.prims.bool),
                 _ => None,
             },
         }
