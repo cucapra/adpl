@@ -240,6 +240,8 @@ where
         .collect()
         .delimited_by(just(Token::OpenBracket), just(Token::CloseBracket));
 
+    let requires = just(Token::Where).ignore_then(expr.clone()).map(Box::new);
+
     let fields = id
         .then_ignore(just(Token::Colon))
         .then(ty.clone())
@@ -256,11 +258,13 @@ where
     let record = just(Token::Struct)
         .ignore_then(id)
         .then(generics.or_not())
+        .then(requires.or_not())
         .then(fields)
-        .map(|((name, params), fields)| {
+        .map(|(((name, params), requires), fields)| {
             ast::ItemKind::Record(ast::Record {
                 name,
                 params: params.unwrap_or_else(Vec::new),
+                requires,
                 fields,
             })
         });

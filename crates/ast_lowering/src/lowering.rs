@@ -82,6 +82,16 @@ impl LoweringContext<'_, '_> {
         }
 
         self.scopes.push(scope);
+
+        let requires = record
+            .requires
+            .as_deref()
+            .map(|requires| {
+                self.lower_expression(requires)
+                    .map(|index| index.try_into().unwrap())
+            })
+            .transpose()?;
+
         let start = self.ctx.fields.next_index();
 
         for (i, field) in record.fields.iter().enumerate() {
@@ -100,11 +110,13 @@ impl LoweringContext<'_, '_> {
         }
 
         let end = self.ctx.fields.next_index();
+
         self.scopes.pop();
 
         let index = self.ctx.add(hir::Record {
             name: record.name,
             params,
+            requires,
             fields: hir::IndexRange { start, end },
         });
 

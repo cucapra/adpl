@@ -332,6 +332,15 @@ impl ItemContext<'_, '_> {
             self.tcx.env[param] = self.tcx.arenas.prims.integer;
         }
 
+        if let Some(expr) = record.requires {
+            let expr = expr.get();
+
+            self.reporter.emit(errors::WarnNotChecked {
+                what: "constraints",
+                expr: &self.hir[expr],
+            });
+        }
+
         let fields = self.hir[record.fields]
             .iter()
             .map(|field| self.lower_type(field.ty))

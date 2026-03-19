@@ -24,6 +24,7 @@ pub enum ItemKind {
 pub struct Record {
     pub name: Id,
     pub params: Vec<Id>,
+    pub requires: Option<Box<Expression>>,
     pub fields: Vec<Field>,
 }
 

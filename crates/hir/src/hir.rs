@@ -13,6 +13,7 @@ pub enum Item {
 pub struct Record {
     pub name: Id,
     pub params: IndexRange<Local>,
+    pub requires: Option<NonMaxIndex<Expression>>,
     pub fields: IndexRange<Field>,
 }
 
