@@ -75,8 +75,12 @@ impl Overloaded for hir::BinaryKind {
                 Type::Real | Type::Integer => Some(lub),
                 _ => None,
             },
-            hir::BinaryKind::Div | hir::BinaryKind::Pow => match &ctx[lub] {
+            hir::BinaryKind::Div => match &ctx[lub] {
                 Type::Real | Type::Integer => Some(ctx.prims.real),
+                _ => None,
+            },
+            hir::BinaryKind::Pow => match &ctx[lub] {
+                Type::Integer => Some(ctx.prims.real),
                 _ => None,
             },
             hir::BinaryKind::Shl | hir::BinaryKind::Shr => None,
