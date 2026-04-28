@@ -8,7 +8,7 @@ use crate::errors;
 use crate::printer::Printer;
 use crate::promotion::Overloaded;
 use crate::substitution::Foldable;
-use crate::types::{self as ty, Intern};
+use crate::types as ty;
 
 pub fn check_hir(
     hir: &hir::Context,
@@ -187,9 +187,9 @@ impl ItemContext<'_, '_> {
                     })
                     .ok_or(TypingError),
                 hir::LocalKind::Param(_) => {
-                    self.reporter.emit(errors::NonConstInGeneric {
+                    self.reporter.emit(errors::ExpectedConst {
                         expr: &self.hir[expr],
-                        secondary: self.lowering.cause(self.hir),
+                        context: self.lowering.cause(self.hir),
                     });
 
                     Err(TypingError)
@@ -252,15 +252,7 @@ impl ItemContext<'_, '_> {
 
                         Ok((lowered, overload))
                     }
-                    hir::UnaryKind::Not => {
-                        self.reporter.emit(errors::NotAllowedInGeneric {
-                            what: "operator `!`",
-                            primary: op.span,
-                            secondary: self.lowering.cause(self.hir),
-                        });
-
-                        Err(TypingError)
-                    }
+                    hir::UnaryKind::Not => unreachable!(),
                 }
             }
             hir::ExprKind::Binary(ref op, lhs, rhs) => {
@@ -284,10 +276,10 @@ impl ItemContext<'_, '_> {
                     })?;
 
                 let Ok(op) = op.kind.try_into() else {
-                    self.reporter.emit(errors::NotAllowedInGeneric {
+                    self.reporter.emit(errors::NotRealValued {
+                        expr: &self.hir[expr],
                         what: &format!("operator `{}`", op.kind.as_str()),
-                        primary: op.span,
-                        secondary: self.lowering.cause(self.hir),
+                        context: self.lowering.cause(self.hir),
                     });
 
                     return Err(TypingError);
@@ -303,10 +295,10 @@ impl ItemContext<'_, '_> {
             hir::ExprKind::Call(_) => {
                 self.check_expression(expr)?;
 
-                self.reporter.emit(errors::NotAllowedInGeneric {
+                self.reporter.emit(errors::NotRealValued {
+                    expr: &self.hir[expr],
                     what: "call",
-                    primary: self.hir[expr].span,
-                    secondary: self.lowering.cause(self.hir),
+                    context: self.lowering.cause(self.hir),
                 });
 
                 Err(TypingError)
@@ -314,11 +306,133 @@ impl ItemContext<'_, '_> {
             hir::ExprKind::Record(_) => {
                 self.check_expression(expr)?;
 
-                self.reporter.emit(errors::NotAllowedInGeneric {
+                self.reporter.emit(errors::NotRealValued {
+                    expr: &self.hir[expr],
                     what: "initializer",
-                    primary: self.hir[expr].span,
-                    secondary: self.lowering.cause(self.hir),
+                    context: self.lowering.cause(self.hir),
                 });
+
+                Err(TypingError)
+            }
+        }
+    }
+
+    fn lower_proposition(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Proposition>> {
+        match self.hir[expr].kind {
+            hir::ExprKind::Id(local) => match self.hir[local].kind {
+                hir::LocalKind::Let(_) => unreachable!(),
+                hir::LocalKind::Param(_) => {
+                    self.reporter.emit(errors::ExpectedConst {
+                        expr: &self.hir[expr],
+                        context: None,
+                    });
+
+                    Err(TypingError)
+                }
+                hir::LocalKind::GenericParam(_) => {
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleTypes {
+                            expr: &self.hir[expr],
+                            expected: self.tcx.arenas.prims.bool,
+                            found: self.tcx.arenas.prims.integer,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    Err(TypingError)
+                }
+            },
+            hir::ExprKind::Lit(_) => {
+                self.reporter.emit(Diagnostic::from(
+                    errors::IncompatibleTypes {
+                        expr: &self.hir[expr],
+                        expected: self.tcx.arenas.prims.bool,
+                        found: self.tcx.arenas.prims.integer,
+                        printer: &self.printer(),
+                    },
+                ));
+
+                Err(TypingError)
+            }
+            hir::ExprKind::Field(..) => {
+                Err(self.lower_expression(expr).unwrap_err())
+            }
+            hir::ExprKind::Unary(ref op, arg) => match op.kind {
+                hir::UnaryKind::Neg => {
+                    let found = self.check_expression(expr)?;
+
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleTypes {
+                            expr: &self.hir[expr],
+                            expected: self.tcx.arenas.prims.bool,
+                            found,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    Err(TypingError)
+                }
+                hir::UnaryKind::Not => {
+                    let arg = self.lower_proposition(arg)?;
+
+                    Ok(self.tcx.arenas.intern(ty::Proposition::Not(arg)))
+                }
+            },
+            hir::ExprKind::Binary(ref op, lhs, rhs) => {
+                let (lhs, lhs_ty) = self.lower_expression(lhs)?;
+                let (rhs, rhs_ty) = self.lower_expression(rhs)?;
+
+                let found = op
+                    .kind
+                    .select_binary_overload(lhs_ty, rhs_ty, &self.tcx.arenas)
+                    .ok_or_else(|| {
+                        self.reporter.emit(Diagnostic::from(
+                            errors::NoMatchingBinaryOverload {
+                                op,
+                                lhs: lhs_ty,
+                                rhs: rhs_ty,
+                                printer: &self.printer(),
+                            },
+                        ));
+
+                        TypingError
+                    })?;
+
+                let Ok(op) = op.kind.try_into() else {
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleTypes {
+                            expr: &self.hir[expr],
+                            expected: self.tcx.arenas.prims.bool,
+                            found,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    return Err(TypingError);
+                };
+
+                Ok(self
+                    .tcx
+                    .arenas
+                    .intern(ty::Proposition::Relation(op, lhs, rhs)))
+            }
+            hir::ExprKind::Call(_) => {
+                Err(self.lower_expression(expr).unwrap_err())
+            }
+            hir::ExprKind::Record(_) => {
+                let found = self.check_expression(expr)?;
+
+                self.reporter.emit(Diagnostic::from(
+                    errors::IncompatibleTypes {
+                        expr: &self.hir[expr],
+                        expected: self.tcx.arenas.prims.bool,
+                        found,
+                        printer: &self.printer(),
+                    },
+                ));
 
                 Err(TypingError)
             }
@@ -333,12 +447,7 @@ impl ItemContext<'_, '_> {
         }
 
         if let Some(expr) = record.requires {
-            let expr = expr.get();
-
-            self.reporter.emit(errors::WarnNotChecked {
-                what: "constraints",
-                expr: &self.hir[expr],
-            });
+            self.lower_proposition(expr.get())?;
         }
 
         let fields = self.hir[record.fields]
@@ -372,12 +481,7 @@ impl ItemContext<'_, '_> {
         self.tcx.signatures.insert_back(index, (inputs, output));
 
         if let Some(expr) = def.requires {
-            let expr = expr.get();
-
-            self.reporter.emit(errors::WarnNotChecked {
-                what: "preconditions",
-                expr: &self.hir[expr],
-            });
+            self.lower_proposition(expr.get())?;
         }
 
         Ok(())

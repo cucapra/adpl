@@ -40,6 +40,40 @@ pub enum Expression {
     Binary(BinaryOp, Index<Expression>, Index<Expression>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Predicate {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+impl TryFrom<hir::BinaryKind> for Predicate {
+    type Error = TryFromHirError;
+
+    fn try_from(value: hir::BinaryKind) -> Result<Self, Self::Error> {
+        match value {
+            hir::BinaryKind::Eq => Ok(Predicate::Eq),
+            hir::BinaryKind::Ne => Ok(Predicate::Ne),
+            hir::BinaryKind::Gt => Ok(Predicate::Gt),
+            hir::BinaryKind::Ge => Ok(Predicate::Ge),
+            hir::BinaryKind::Lt => Ok(Predicate::Lt),
+            hir::BinaryKind::Le => Ok(Predicate::Le),
+            _ => Err(TryFromHirError),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Proposition {
+    Not(Index<Proposition>),
+    And(Index<Proposition>, Index<Proposition>),
+    Or(Index<Proposition>, Index<Proposition>),
+    Relation(Predicate, Index<Expression>, Index<Expression>),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     Real,
@@ -65,6 +99,7 @@ pub struct PrimitiveTypes {
 
 pub struct TypeArenas {
     pub exprs: Interned<Expression>,
+    pub props: Interned<Proposition>,
     pub types: Interned<Type>,
     pub prims: PrimitiveTypes,
 }
@@ -81,9 +116,19 @@ impl TypeArenas {
 
         TypeArenas {
             exprs: Interned::new(),
+            props: Interned::new(),
             types,
             prims,
         }
+    }
+
+    #[allow(private_bounds)]
+    #[inline]
+    pub fn intern<T>(&mut self, value: T) -> Index<T>
+    where
+        TypeArenas: Intern<T>,
+    {
+        Intern::intern(self, value)
     }
 }
 
@@ -94,38 +139,40 @@ impl Default for TypeArenas {
     }
 }
 
-impl ops::Index<Index<Expression>> for TypeArenas {
-    type Output = Expression;
+impl<T> ops::Index<Index<T>> for TypeArenas
+where
+    TypeArenas: Intern<T>,
+{
+    type Output = T;
 
     #[inline]
-    fn index(&self, index: Index<Expression>) -> &Expression {
-        self.exprs.index(index)
+    fn index(&self, index: Index<T>) -> &T {
+        self.interner().index(index)
     }
 }
 
-impl ops::Index<Index<Type>> for TypeArenas {
-    type Output = Type;
+trait Intern<T> {
+    fn interner(&self) -> &Interned<T>;
 
-    #[inline]
-    fn index(&self, index: Index<Type>) -> &Type {
-        self.types.index(index)
-    }
-}
-
-pub(crate) trait Intern<T>: ops::Index<Index<T>, Output = T> {
     fn intern(&mut self, value: T) -> Index<T>;
 }
 
-impl Intern<Expression> for TypeArenas {
-    #[inline]
-    fn intern(&mut self, value: Expression) -> Index<Expression> {
-        self.exprs.intern(value)
-    }
+macro_rules! intern_impl {
+    ($field:ident, $ty:ty) => {
+        impl Intern<$ty> for TypeArenas {
+            #[inline]
+            fn interner(&self) -> &Interned<$ty> {
+                &self.$field
+            }
+
+            #[inline]
+            fn intern(&mut self, value: $ty) -> Index<$ty> {
+                self.$field.intern(value)
+            }
+        }
+    };
 }
 
-impl Intern<Type> for TypeArenas {
-    #[inline]
-    fn intern(&mut self, value: Type) -> Index<Type> {
-        self.types.intern(value)
-    }
-}
+intern_impl!(exprs, Expression);
+intern_impl!(props, Proposition);
+intern_impl!(types, Type);
