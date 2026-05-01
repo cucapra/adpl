@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+z3.workspace = true
+
 adpl-arena.workspace = true
 adpl-hir.workspace = true
 adpl-util.workspace = true

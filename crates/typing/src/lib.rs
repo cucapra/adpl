@@ -2,6 +2,7 @@ mod check;
 mod errors;
 mod printer;
 mod promotion;
+mod queries;
 mod substitution;
 mod types;
 

@@ -7,6 +7,7 @@ use adpl_util::{Diagnostic, Reporter};
 use crate::errors;
 use crate::printer::Printer;
 use crate::promotion::Overloaded;
+use crate::queries::{Equivalent, LBool};
 use crate::substitution::Foldable;
 use crate::types as ty;
 
@@ -153,6 +154,7 @@ impl ItemContext<'_, '_> {
                     expr: &self.hir[expr],
                     expected,
                     found,
+                    certain: true,
                     printer: &self.printer(),
                 }));
 
@@ -338,6 +340,7 @@ impl ItemContext<'_, '_> {
                             expr: &self.hir[expr],
                             expected: self.tcx.arenas.prims.bool,
                             found: self.tcx.arenas.prims.integer,
+                            certain: true,
                             printer: &self.printer(),
                         },
                     ));
@@ -351,6 +354,7 @@ impl ItemContext<'_, '_> {
                         expr: &self.hir[expr],
                         expected: self.tcx.arenas.prims.bool,
                         found: self.tcx.arenas.prims.integer,
+                        certain: true,
                         printer: &self.printer(),
                     },
                 ));
@@ -369,6 +373,7 @@ impl ItemContext<'_, '_> {
                             expr: &self.hir[expr],
                             expected: self.tcx.arenas.prims.bool,
                             found,
+                            certain: true,
                             printer: &self.printer(),
                         },
                     ));
@@ -407,6 +412,7 @@ impl ItemContext<'_, '_> {
                             expr: &self.hir[expr],
                             expected: self.tcx.arenas.prims.bool,
                             found,
+                            certain: true,
                             printer: &self.printer(),
                         },
                     ));
@@ -430,6 +436,7 @@ impl ItemContext<'_, '_> {
                         expr: &self.hir[expr],
                         expected: self.tcx.arenas.prims.bool,
                         found,
+                        certain: true,
                         printer: &self.printer(),
                     },
                 ));
@@ -584,12 +591,15 @@ impl ItemContext<'_, '_> {
                     let expected = param
                         .fold_with(&mut self.tcx.arenas, generics.as_slice());
 
-                    if found != expected {
+                    if let result @ (LBool::False | LBool::Unknown) =
+                        found.equivalent(expected, &self.tcx.arenas)
+                    {
                         self.reporter.emit(Diagnostic::from(
                             errors::IncompatibleTypes {
                                 expr: &self.hir[self.hir[call.args][i]],
                                 expected,
                                 found,
+                                certain: result == LBool::False,
                                 printer: &self.printer(),
                             },
                         ));
@@ -618,12 +628,15 @@ impl ItemContext<'_, '_> {
                     let expected =
                         field.fold_with(&mut self.tcx.arenas, args.as_ref());
 
-                    if found != expected {
+                    if let result @ (LBool::False | LBool::Unknown) =
+                        found.equivalent(expected, &self.tcx.arenas)
+                    {
                         self.reporter.emit(Diagnostic::from(
                             errors::IncompatibleTypes {
                                 expr: &self.hir[self.hir[cons.inits][i]],
                                 expected,
                                 found,
+                                certain: result == LBool::False,
                                 printer: &self.printer(),
                             },
                         ));
@@ -700,12 +713,15 @@ impl DefinitionContext<'_, '_> {
                 let expected = self.icx.tcx.signatures[self.def].1;
                 let found = self.icx.check_expression(expr)?;
 
-                if found != expected {
+                if let result @ (LBool::False | LBool::Unknown) =
+                    found.equivalent(expected, &self.icx.tcx.arenas)
+                {
                     self.icx.reporter.emit(Diagnostic::from(
                         errors::IncompatibleTypes {
                             expr: &self.icx.hir[expr],
                             expected,
                             found,
+                            certain: result == LBool::False,
                             printer: &self.icx.printer(),
                         },
                     ));

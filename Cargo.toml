@@ -29,6 +29,7 @@ codespan-reporting = "0.11"
 logos = "0.15"
 stacker = "0.1"
 symbol_table = { version = "0.4", features = ["global"] }
+z3 = "0.20"
 
 adpl-arena = { path = "crates/arena" }
 adpl-ast = { path = "crates/ast" }

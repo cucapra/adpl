@@ -128,13 +128,18 @@ pub struct IncompatibleTypes<'a> {
     pub expr: &'a hir::Expression,
     pub expected: Index<Type>,
     pub found: Index<Type>,
+    pub certain: bool,
     pub printer: &'a Printer<'a>,
 }
 
 impl From<IncompatibleTypes<'_>> for Diagnostic {
     fn from(value: IncompatibleTypes) -> Self {
         Diagnostic::error()
-            .with_message("incompatible types")
+            .with_message(if value.certain {
+                "incompatible types"
+            } else {
+                "failed to prove type equivalence"
+            })
             .with_primary(
                 value.expr.span,
                 format!(
