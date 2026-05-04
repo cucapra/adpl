@@ -13,6 +13,8 @@ pub enum Token<'src> {
     #[regex("[0-9]+")]
     Literal(&'src str),
 
+    #[token("const")]
+    Const,
     #[token("def")]
     Def,
     #[token("else")]

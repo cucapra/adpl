@@ -33,46 +33,29 @@ impl From<WarnUnreachable<'_>> for Diagnostic {
 
 pub struct ExpectedConst<'a> {
     pub expr: &'a hir::Expression,
-    pub context: Option<&'a hir::Expression>,
 }
 
 impl From<ExpectedConst<'_>> for Diagnostic {
     fn from(value: ExpectedConst) -> Self {
-        let error = Diagnostic::error()
+        Diagnostic::error()
             .with_message("use of non-constant value in a constant context")
-            .with_primary(value.expr.span, "not a constant");
-
-        if let Some(expr) = value.context {
-            error.with_secondary(expr.span, "used here in a constant context")
-        } else {
-            error
-        }
+            .with_primary(value.expr.span, "not a constant")
     }
 }
 
 pub struct NotRealValued<'a> {
     pub expr: &'a hir::Expression,
     pub what: &'a str,
-    pub context: Option<&'a hir::Expression>,
 }
 
 impl From<NotRealValued<'_>> for Diagnostic {
     fn from(value: NotRealValued) -> Self {
-        let error = Diagnostic::error()
+        Diagnostic::error()
             .with_message(format!(
                 "{} not allowed in a real-valued expression",
                 value.what,
             ))
-            .with_primary(value.expr.span, "not real-valued");
-
-        if let Some(expr) = value.context {
-            error.with_secondary(
-                expr.span,
-                "used here in a real-valued expression",
-            )
-        } else {
-            error
-        }
+            .with_primary(value.expr.span, "not real-valued")
     }
 }
 

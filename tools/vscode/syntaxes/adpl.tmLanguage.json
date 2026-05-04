@@ -154,7 +154,7 @@
         },
         {
           "name": "storage.modifier.adpl",
-          "match": "\\b(implements|unsafe|where)\\b"
+          "match": "\\b(const|implements|unsafe|where)\\b"
         },
         {
           "name": "support.type.adpl",

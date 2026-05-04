@@ -90,8 +90,15 @@ pub enum StmtKind {
 
 #[derive(Debug)]
 pub struct Assignment {
+    pub modifier: Modifier,
     pub lhs: Id,
     pub rhs: Expression,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Modifier {
+    None,
+    Const,
 }
 
 #[derive(Debug)]
@@ -197,7 +204,7 @@ pub struct Call {
 pub struct Constructor {
     pub name: Id,
     pub generics: Vec<Expression>,
-    pub fields: Vec<Assignment>,
+    pub fields: Vec<(Id, Expression)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -213,16 +220,13 @@ impl Span {
 impl From<Range<usize>> for Span {
     #[inline]
     fn from(value: Range<usize>) -> Self {
-        Span::new(value.start, value.end)
+        Span(value.start, value.end)
     }
 }
 
 impl From<Span> for Range<usize> {
     #[inline]
     fn from(value: Span) -> Self {
-        Range {
-            start: value.0,
-            end: value.1,
-        }
+        value.0..value.1
     }
 }

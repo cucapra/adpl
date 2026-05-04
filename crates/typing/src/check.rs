@@ -16,7 +16,7 @@ pub fn check_hir(
     reporter: &mut Reporter,
 ) -> Option<TypingContext> {
     let mut tcx = TypingContext::with_default_env(hir);
-    let mut lowering = LoweringContext::default();
+    let mut lowered = LoweringContext::default();
 
     for item in hir.items.values() {
         match *item {
@@ -25,21 +25,21 @@ pub fn check_hir(
                     hir,
                     reporter,
                     tcx: &mut tcx,
-                    lowering: &mut lowering,
+                    lowered: &mut lowered,
                     generics: hir[record].params,
                 };
 
                 ctx.check_record(record).ok()?;
             }
             hir::Item::Def(def) => {
-                lowering.cache.clear();
+                lowered.clear();
 
                 let mut ctx = DefinitionContext {
                     icx: ItemContext {
                         hir,
                         reporter,
                         tcx: &mut tcx,
-                        lowering: &mut lowering,
+                        lowered: &mut lowered,
                         generics: hir[def].generics,
                     },
                     def,
@@ -81,14 +81,12 @@ impl TypingContext {
 
 #[derive(Default)]
 struct LoweringContext {
-    cache: HashMap<Index<hir::Local>, (Index<ty::Expression>, Index<ty::Type>)>,
-    /// The use that caused the current expression to be lowered.
-    cause: Option<Index<hir::Expression>>,
+    consts: HashMap<Index<hir::Local>, Index<ty::Expression>>,
 }
 
 impl LoweringContext {
-    fn cause<'a>(&self, hir: &'a hir::Context) -> Option<&'a hir::Expression> {
-        self.cause.map(|expr| &hir[expr])
+    fn clear(&mut self) {
+        self.consts.clear();
     }
 }
 
@@ -96,7 +94,7 @@ struct ItemContext<'a, 'src> {
     hir: &'a hir::Context,
     reporter: &'a mut Reporter<'src>,
     tcx: &'a mut TypingContext,
-    lowering: &'a mut LoweringContext,
+    lowered: &'a mut LoweringContext,
     /// Generic parameters for the current item.
     generics: IndexRange<hir::Local>,
 }
@@ -168,30 +166,12 @@ impl ItemContext<'_, '_> {
     ) -> Result<(Index<ty::Expression>, Index<ty::Type>)> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
-                hir::LocalKind::Let(rhs) => self
-                    .lowering
-                    .cache
-                    .get(&local)
-                    .copied()
-                    .or_else(|| {
-                        let old_cause = self.lowering.cause;
-
-                        if old_cause.is_none() {
-                            self.lowering.cause = Some(expr);
-                        }
-
-                        let lowered = self.lower_expression(rhs).ok()?;
-
-                        self.lowering.cache.insert(local, lowered);
-                        self.lowering.cause = old_cause;
-
-                        Some(lowered)
-                    })
-                    .ok_or(TypingError),
-                hir::LocalKind::Param(_) => {
+                hir::LocalKind::Const(_) => {
+                    Ok((self.lowered.consts[&local], self.tcx.env[local]))
+                }
+                hir::LocalKind::Let(_) | hir::LocalKind::Param(_) => {
                     self.reporter.emit(errors::ExpectedConst {
                         expr: &self.hir[expr],
-                        context: self.lowering.cause(self.hir),
                     });
 
                     Err(TypingError)
@@ -281,7 +261,6 @@ impl ItemContext<'_, '_> {
                     self.reporter.emit(errors::NotRealValued {
                         expr: &self.hir[expr],
                         what: &format!("operator `{}`", op.kind.as_str()),
-                        context: self.lowering.cause(self.hir),
                     });
 
                     return Err(TypingError);
@@ -300,7 +279,6 @@ impl ItemContext<'_, '_> {
                 self.reporter.emit(errors::NotRealValued {
                     expr: &self.hir[expr],
                     what: "call",
-                    context: self.lowering.cause(self.hir),
                 });
 
                 Err(TypingError)
@@ -311,7 +289,6 @@ impl ItemContext<'_, '_> {
                 self.reporter.emit(errors::NotRealValued {
                     expr: &self.hir[expr],
                     what: "initializer",
-                    context: self.lowering.cause(self.hir),
                 });
 
                 Err(TypingError)
@@ -326,10 +303,10 @@ impl ItemContext<'_, '_> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
                 hir::LocalKind::Let(_) => unreachable!(),
+                hir::LocalKind::Const(_) => unreachable!(),
                 hir::LocalKind::Param(_) => {
                     self.reporter.emit(errors::ExpectedConst {
                         expr: &self.hir[expr],
-                        context: None,
                     });
 
                     Err(TypingError)
@@ -706,6 +683,14 @@ impl DefinitionContext<'_, '_> {
         match self.icx.hir[stmt].kind {
             hir::StmtKind::Assign(local, expr) => {
                 self.icx.tcx.env[local] = self.icx.check_expression(expr)?;
+
+                Ok(Termination::Unit)
+            }
+            hir::StmtKind::Const(local, expr) => {
+                let (lowered, ty) = self.icx.lower_expression(expr)?;
+
+                self.icx.tcx.env[local] = ty;
+                self.icx.lowered.consts.insert(local, lowered);
 
                 Ok(Termination::Unit)
             }

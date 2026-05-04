@@ -69,6 +69,7 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StmtKind {
     Assign(Index<Local>, Index<Expression>),
+    Const(Index<Local>, Index<Expression>),
     Return(Index<Expression>),
     Unsafe(List<Statement>),
 }
@@ -99,6 +100,7 @@ pub struct Local {
 #[derive(Debug)]
 pub enum LocalKind {
     Let(Index<Expression>),
+    Const(Index<Expression>),
     Param(u16),
     GenericParam(u16),
 }

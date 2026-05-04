@@ -16,7 +16,7 @@ pub type Error = Cheap<Span>;
 
 enum AtomTail {
     Call(Vec<ast::Expression>),
-    Record(Vec<ast::Assignment>),
+    Record(Vec<(ast::Id, ast::Expression)>),
 }
 
 fn parser<'tk, 'src, I>() -> impl Parser<'tk, I, ast::File, extra::Err<Error>>
@@ -58,7 +58,6 @@ where
         let fields = id
             .then_ignore(just(Token::Eq))
             .then(expr.clone())
-            .map(|(lhs, rhs)| ast::Assignment { lhs, rhs })
             .separated_by(just(Token::Comma))
             .allow_trailing()
             .collect()
@@ -191,12 +190,23 @@ where
     });
 
     let block = recursive(|block| {
+        let modifier = just(Token::Const)
+            .to(ast::Modifier::Const)
+            .or_not()
+            .map(|modifier| modifier.unwrap_or(ast::Modifier::None));
+
         let statement = choice((
-            id.then_ignore(just(Token::Eq))
+            modifier
+                .then(id)
+                .then_ignore(just(Token::Eq))
                 .then(expr.clone())
                 .then_ignore(just(Token::Semicolon))
-                .map(|(lhs, rhs)| {
-                    ast::StmtKind::Assign(ast::Assignment { lhs, rhs })
+                .map(|((modifier, lhs), rhs)| {
+                    ast::StmtKind::Assign(ast::Assignment {
+                        modifier,
+                        lhs,
+                        rhs,
+                    })
                 }),
             just(Token::Return)
                 .ignore_then(expr.clone())

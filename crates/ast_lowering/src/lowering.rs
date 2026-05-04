@@ -329,8 +329,13 @@ impl LoweringContext<'_, '_> {
             ast::StmtKind::Assign(assn) => {
                 let expr = self.lower_expression(&assn.rhs)?;
 
+                let kind = match assn.modifier {
+                    ast::Modifier::None => hir::LocalKind::Let(expr),
+                    ast::Modifier::Const => hir::LocalKind::Const(expr),
+                };
+
                 let local = self.ctx.add(hir::Local {
-                    kind: hir::LocalKind::Let(expr),
+                    kind,
                     name: assn.lhs,
                 });
 
@@ -339,7 +344,10 @@ impl LoweringContext<'_, '_> {
                     .unwrap()
                     .insert(assn.lhs.symbol, local);
 
-                hir::StmtKind::Assign(local, expr)
+                match assn.modifier {
+                    ast::Modifier::None => hir::StmtKind::Assign(local, expr),
+                    ast::Modifier::Const => hir::StmtKind::Const(local, expr),
+                }
             }
             ast::StmtKind::Return(expr) => {
                 hir::StmtKind::Return(self.lower_expression(expr)?)
@@ -545,29 +553,26 @@ impl LoweringContext<'_, '_> {
         let fields = self.ctx[record].fields;
         let inits = self.ctx.lists.extend_invalid(fields.len());
 
-        for init in &cons.fields {
+        for (lhs, rhs) in &cons.fields {
             let i = fields
                 .into_iter()
-                .position(|field| {
-                    self.ctx[field].name.symbol == init.lhs.symbol
-                })
+                .position(|field| self.ctx[field].name.symbol == lhs.symbol)
                 .ok_or_else(|| {
                     self.reporter.emit(errors::UnexpectedField {
                         ty: &cons.name,
-                        field: &init.lhs,
+                        field: lhs,
                     });
 
                     LoweringError
                 })?;
 
             if self.ctx[inits][i] != hir::Index::INVALID {
-                self.reporter
-                    .emit(errors::DuplicateField { second: &init.lhs });
+                self.reporter.emit(errors::DuplicateField { second: lhs });
 
                 return Err(LoweringError);
             }
 
-            self.ctx[inits][i] = self.lower_expression(&init.rhs)?;
+            self.ctx[inits][i] = self.lower_expression(rhs)?;
         }
 
         for (field, &init) in iter::zip(fields, &self.ctx[inits]) {
