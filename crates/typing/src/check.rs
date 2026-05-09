@@ -1,22 +1,23 @@
+use std::cell::OnceCell;
 use std::collections::HashMap;
+use std::ops;
 
-use adpl_arena::{DenseMap, Index, IndexRange, List};
+use adpl_arena::{DenseMap, Index, NonMaxIndex};
 use adpl_hir as hir;
 use adpl_util::{Diagnostic, Reporter};
 
-use crate::errors;
 use crate::printer::Printer;
 use crate::promotion::Overloaded;
-use crate::queries::{Equivalent, LBool};
+use crate::queries::{Entailed, Equivalent, IntoSmt, LBool};
 use crate::substitution::Foldable;
-use crate::types as ty;
+use crate::{errors, types as ty};
 
 pub fn check_hir(
     hir: &hir::Context,
     reporter: &mut Reporter,
 ) -> Option<TypingContext> {
     let mut tcx = TypingContext::with_default_env(hir);
-    let mut lowered = LoweringContext::default();
+    let mut lowering = LoweringContext::default();
 
     for item in hir.items.values() {
         match *item {
@@ -25,21 +26,23 @@ pub fn check_hir(
                     hir,
                     reporter,
                     tcx: &mut tcx,
-                    lowered: &mut lowered,
+                    lowering: &mut lowering,
+                    asserts: OnceCell::new(),
                     generics: hir[record].params,
                 };
 
                 ctx.check_record(record).ok()?;
             }
             hir::Item::Def(def) => {
-                lowered.clear();
+                lowering.clear();
 
                 let mut ctx = DefinitionContext {
                     icx: ItemContext {
                         hir,
                         reporter,
                         tcx: &mut tcx,
-                        lowered: &mut lowered,
+                        lowering: &mut lowering,
+                        asserts: OnceCell::new(),
                         generics: hir[def].generics,
                     },
                     def,
@@ -58,12 +61,20 @@ struct TypingError;
 
 type Result<T> = std::result::Result<T, TypingError>;
 
-type Fields = Box<[Index<ty::Type>]>;
-type Signature = (Box<[Index<ty::Type>]>, Index<ty::Type>);
+pub struct Record {
+    pub requires: Option<NonMaxIndex<ty::Proposition>>,
+    pub fields: Box<[Index<ty::Type>]>,
+}
+
+pub struct Signature {
+    pub requires: Option<NonMaxIndex<ty::Proposition>>,
+    pub inputs: Box<[Index<ty::Type>]>,
+    pub output: Index<ty::Type>,
+}
 
 pub struct TypingContext {
     pub arenas: ty::TypeArenas,
-    pub fields: DenseMap<hir::Record, Fields>,
+    pub records: DenseMap<hir::Record, Record>,
     pub signatures: DenseMap<hir::Definition, Signature>,
     pub env: DenseMap<hir::Local, Index<ty::Type>>,
 }
@@ -72,7 +83,7 @@ impl TypingContext {
     fn with_default_env(hir: &hir::Context) -> Self {
         TypingContext {
             arenas: ty::TypeArenas::new(),
-            fields: DenseMap::new(),
+            records: DenseMap::new(),
             signatures: DenseMap::new(),
             env: DenseMap::filled(hir.locals.len(), Index::ZERO),
         }
@@ -82,6 +93,7 @@ impl TypingContext {
 #[derive(Default)]
 struct LoweringContext {
     consts: HashMap<Index<hir::Local>, Index<ty::Expression>>,
+    context: Option<&'static str>,
 }
 
 impl LoweringContext {
@@ -94,9 +106,10 @@ struct ItemContext<'a, 'src> {
     hir: &'a hir::Context,
     reporter: &'a mut Reporter<'src>,
     tcx: &'a mut TypingContext,
-    lowered: &'a mut LoweringContext,
+    lowering: &'a mut LoweringContext,
+    asserts: OnceCell<z3::Solver>,
     /// Generic parameters for the current item.
-    generics: IndexRange<hir::Local>,
+    generics: hir::IndexRange<hir::Local>,
 }
 
 impl ItemContext<'_, '_> {
@@ -142,7 +155,8 @@ impl ItemContext<'_, '_> {
         expr: Index<hir::Expression>,
     ) -> Result<Index<ty::Expression>> {
         let expected = self.tcx.arenas.prims.integer;
-        let (lowered, found) = self.lower_expression(expr)?;
+        let (lowered, found) =
+            self.within("generic argument").lower_expression(expr)?;
 
         if found == expected {
             Ok(lowered)
@@ -167,7 +181,7 @@ impl ItemContext<'_, '_> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
                 hir::LocalKind::Const(_) => {
-                    Ok((self.lowered.consts[&local], self.tcx.env[local]))
+                    Ok((self.lowering.consts[&local], self.tcx.env[local]))
                 }
                 hir::LocalKind::Let(_) | hir::LocalKind::Param(_) => {
                     self.reporter.emit(errors::ExpectedConst {
@@ -258,9 +272,9 @@ impl ItemContext<'_, '_> {
                     })?;
 
                 let Ok(op) = op.kind.try_into() else {
-                    self.reporter.emit(errors::NotRealValued {
-                        expr: &self.hir[expr],
-                        what: &format!("operator `{}`", op.kind.as_str()),
+                    self.reporter.emit(errors::NoDenotation {
+                        op: errors::OpKind::Binary(op),
+                        context: self.lowering.context.unwrap(),
                     });
 
                     return Err(TypingError);
@@ -273,22 +287,18 @@ impl ItemContext<'_, '_> {
 
                 Ok((lowered, overload))
             }
-            hir::ExprKind::Call(_) => {
-                self.check_expression(expr)?;
-
-                self.reporter.emit(errors::NotRealValued {
-                    expr: &self.hir[expr],
-                    what: "call",
+            hir::ExprKind::Call(ref call) => {
+                self.reporter.emit(errors::NoDenotation {
+                    op: errors::OpKind::Call(call),
+                    context: self.lowering.context.unwrap(),
                 });
 
                 Err(TypingError)
             }
-            hir::ExprKind::Record(_) => {
-                self.check_expression(expr)?;
-
-                self.reporter.emit(errors::NotRealValued {
-                    expr: &self.hir[expr],
-                    what: "initializer",
+            hir::ExprKind::Record(ref cons) => {
+                self.reporter.emit(errors::NoDenotation {
+                    op: errors::OpKind::Record(cons),
+                    context: self.lowering.context.unwrap(),
                 });
 
                 Err(TypingError)
@@ -343,7 +353,7 @@ impl ItemContext<'_, '_> {
             }
             hir::ExprKind::Unary(ref op, arg) => match op.kind {
                 hir::UnaryKind::Neg => {
-                    let found = self.check_expression(expr)?;
+                    let (_, found) = self.lower_expression(expr)?;
 
                     self.reporter.emit(Diagnostic::from(
                         errors::IncompatibleTypes {
@@ -406,19 +416,7 @@ impl ItemContext<'_, '_> {
                 Err(self.lower_expression(expr).unwrap_err())
             }
             hir::ExprKind::Record(_) => {
-                let found = self.check_expression(expr)?;
-
-                self.reporter.emit(Diagnostic::from(
-                    errors::IncompatibleTypes {
-                        expr: &self.hir[expr],
-                        expected: self.tcx.arenas.prims.bool,
-                        found,
-                        certain: true,
-                        printer: &self.printer(),
-                    },
-                ));
-
-                Err(TypingError)
+                Err(self.lower_expression(expr).unwrap_err())
             }
         }
     }
@@ -430,16 +428,23 @@ impl ItemContext<'_, '_> {
             self.tcx.env[param] = self.tcx.arenas.prims.integer;
         }
 
-        if let Some(expr) = record.requires {
-            self.lower_proposition(expr.get())?;
-        }
+        let requires = record
+            .requires
+            .map(|expr| {
+                self.within("precondition")
+                    .lower_proposition(expr.get())
+                    .map(|index| index.try_into().unwrap())
+            })
+            .transpose()?;
 
         let fields = self.hir[record.fields]
             .iter()
             .map(|field| self.lower_type(field.ty))
             .collect::<Result<_>>()?;
 
-        self.tcx.fields.insert_back(index, fields);
+        self.tcx
+            .records
+            .insert_back(index, Record { requires, fields });
 
         Ok(())
     }
@@ -462,11 +467,26 @@ impl ItemContext<'_, '_> {
 
         let output = self.lower_type(def.output)?;
 
-        self.tcx.signatures.insert_back(index, (inputs, output));
+        let requires = def
+            .requires
+            .map(|expr| {
+                let prop = self
+                    .within("precondition")
+                    .lower_proposition(expr.get())?;
 
-        if let Some(expr) = def.requires {
-            self.lower_proposition(expr.get())?;
-        }
+                self.asserts().assert(prop.into_smt(&self.tcx.arenas));
+
+                Ok(prop.try_into().unwrap())
+            })
+            .transpose()?;
+
+        let signature = Signature {
+            requires,
+            inputs,
+            output,
+        };
+
+        self.tcx.signatures.insert_back(index, signature);
 
         Ok(())
     }
@@ -509,7 +529,7 @@ impl ItemContext<'_, '_> {
                         TypingError
                     })?;
 
-                let field = self.tcx.fields[record][i];
+                let field = self.tcx.records[record].fields[i];
                 let args = args.clone();
 
                 field.fold_with(&mut self.tcx.arenas, args.as_ref())
@@ -561,7 +581,11 @@ impl ItemContext<'_, '_> {
                     .map(|&expr| self.check_expression(expr))
                     .collect::<Result<_>>()?;
 
-                let (ref params, output) = self.tcx.signatures[call.callee];
+                let Signature {
+                    requires,
+                    inputs: ref params,
+                    output,
+                } = self.tcx.signatures[call.callee];
 
                 for (i, (&param, found)) in params.iter().zip(args).enumerate()
                 {
@@ -585,6 +609,28 @@ impl ItemContext<'_, '_> {
                     }
                 }
 
+                if let Some(requires) = requires {
+                    let prop = requires
+                        .get()
+                        .fold_with(&mut self.tcx.arenas, generics.as_slice());
+
+                    if let result @ (LBool::False | LBool::Unknown) =
+                        prop.entailed(self.asserts(), &self.tcx.arenas)
+                    {
+                        let requires =
+                            self.hir[call.callee].requires.unwrap().get();
+
+                        self.reporter.emit(errors::UnmetPrecondition {
+                            callee: &call.name,
+                            kind: "call",
+                            requires: &self.hir[requires],
+                            certain: result == LBool::False,
+                        });
+
+                        return Err(TypingError);
+                    }
+                }
+
                 output.fold_with(&mut self.tcx.arenas, generics.as_slice())
             }
             hir::ExprKind::Record(ref cons) => {
@@ -598,7 +644,10 @@ impl ItemContext<'_, '_> {
                     .map(|&expr| self.check_expression(expr))
                     .collect::<Result<_>>()?;
 
-                let fields = &self.tcx.fields[cons.record];
+                let Record {
+                    requires,
+                    ref fields,
+                } = self.tcx.records[cons.record];
 
                 for (i, (&field, found)) in fields.iter().zip(inits).enumerate()
                 {
@@ -622,6 +671,28 @@ impl ItemContext<'_, '_> {
                     }
                 }
 
+                if let Some(requires) = requires {
+                    let prop = requires
+                        .get()
+                        .fold_with(&mut self.tcx.arenas, args.as_ref());
+
+                    if let result @ (LBool::False | LBool::Unknown) =
+                        prop.entailed(self.asserts(), &self.tcx.arenas)
+                    {
+                        let requires =
+                            self.hir[cons.record].requires.unwrap().get();
+
+                        self.reporter.emit(errors::UnmetPrecondition {
+                            callee: &cons.name,
+                            kind: "initializer",
+                            requires: &self.hir[requires],
+                            certain: result == LBool::False,
+                        });
+
+                        return Err(TypingError);
+                    }
+                }
+
                 self.tcx.arenas.intern(ty::Type::Record {
                     name: cons.record,
                     args,
@@ -632,12 +703,50 @@ impl ItemContext<'_, '_> {
         Ok(ty)
     }
 
+    fn within(
+        &mut self,
+        context: &'static str,
+    ) -> impl ops::DerefMut<Target = Self> {
+        struct Guard<'ctx, 'a, 'b> {
+            ctx: &'ctx mut ItemContext<'a, 'b>,
+            outer: Option<&'static str>,
+        }
+
+        impl<'a, 'b> ops::Deref for Guard<'_, 'a, 'b> {
+            type Target = ItemContext<'a, 'b>;
+
+            fn deref(&self) -> &Self::Target {
+                self.ctx
+            }
+        }
+
+        impl ops::DerefMut for Guard<'_, '_, '_> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                self.ctx
+            }
+        }
+
+        impl Drop for Guard<'_, '_, '_> {
+            fn drop(&mut self) {
+                self.ctx.lowering.context = self.outer;
+            }
+        }
+
+        let outer = self.lowering.context.replace(context);
+
+        Guard { ctx: self, outer }
+    }
+
     fn printer(&self) -> Printer<'_> {
         Printer {
             hir: self.hir,
             types: &self.tcx.arenas,
             params: self.generics,
         }
+    }
+
+    fn asserts(&self) -> &z3::Solver {
+        self.asserts.get_or_init(z3::Solver::new)
     }
 }
 
@@ -687,15 +796,16 @@ impl DefinitionContext<'_, '_> {
                 Ok(Termination::Unit)
             }
             hir::StmtKind::Const(local, expr) => {
-                let (lowered, ty) = self.icx.lower_expression(expr)?;
+                let (lowered, ty) =
+                    self.icx.within("constant").lower_expression(expr)?;
 
                 self.icx.tcx.env[local] = ty;
-                self.icx.lowered.consts.insert(local, lowered);
+                self.icx.lowering.consts.insert(local, lowered);
 
                 Ok(Termination::Unit)
             }
             hir::StmtKind::Return(expr) => {
-                let expected = self.icx.tcx.signatures[self.def].1;
+                let expected = self.icx.tcx.signatures[self.def].output;
                 let found = self.icx.check_expression(expr)?;
 
                 if let result @ (LBool::False | LBool::Unknown) =
@@ -722,7 +832,7 @@ impl DefinitionContext<'_, '_> {
 
     fn check_block(
         &mut self,
-        block: List<hir::Statement>,
+        block: hir::List<hir::Statement>,
     ) -> Result<Termination> {
         let mut glb = Termination::Unit;
         let mut seen_unreachable = false;

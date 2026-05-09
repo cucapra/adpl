@@ -1,8 +1,39 @@
+use std::fmt;
+
 use adpl_hir as hir;
 use adpl_util::Diagnostic;
 
 use crate::printer::{Pretty, Printer};
 use crate::types::{Index, Type};
+
+pub enum OpKind<'a> {
+    Unary(&'a hir::UnaryOp),
+    Binary(&'a hir::BinaryOp),
+    Call(&'a hir::Call),
+    Record(&'a hir::Constructor),
+}
+
+impl OpKind<'_> {
+    fn span(&self) -> hir::Span {
+        match self {
+            OpKind::Unary(op) => op.span,
+            OpKind::Binary(op) => op.span,
+            OpKind::Call(call) => call.name.span,
+            OpKind::Record(cons) => cons.name.span,
+        }
+    }
+}
+
+impl fmt::Display for OpKind<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OpKind::Unary(op) => write!(f, "operator `{}`", op.kind.as_str()),
+            OpKind::Binary(op) => write!(f, "operator `{}`", op.kind.as_str()),
+            OpKind::Call(call) => write!(f, "`{}`", call.name.symbol),
+            OpKind::Record(_) => write!(f, "initializer"),
+        }
+    }
+}
 
 pub struct WarnNotChecked<'a> {
     pub what: &'a str,
@@ -43,19 +74,22 @@ impl From<ExpectedConst<'_>> for Diagnostic {
     }
 }
 
-pub struct NotRealValued<'a> {
-    pub expr: &'a hir::Expression,
-    pub what: &'a str,
+pub struct NoDenotation<'a> {
+    pub op: OpKind<'a>,
+    pub context: &'a str,
 }
 
-impl From<NotRealValued<'_>> for Diagnostic {
-    fn from(value: NotRealValued) -> Self {
+impl From<NoDenotation<'_>> for Diagnostic {
+    fn from(value: NoDenotation) -> Self {
         Diagnostic::error()
             .with_message(format!(
-                "{} not allowed in a real-valued expression",
-                value.what,
+                "cannot infer denotation for {}",
+                value.context,
             ))
-            .with_primary(value.expr.span, "not real-valued")
+            .with_primary(
+                value.op.span(),
+                format!("{} has no real-valued denotation", value.op),
+            )
     }
 }
 
@@ -130,6 +164,32 @@ impl From<IncompatibleTypes<'_>> for Diagnostic {
                     value.expected.pretty(value.printer),
                     value.found.pretty(value.printer),
                 ),
+            )
+    }
+}
+
+pub struct UnmetPrecondition<'a> {
+    pub callee: &'a hir::Id,
+    pub kind: &'a str,
+    pub requires: &'a hir::Expression,
+    pub certain: bool,
+}
+
+impl From<UnmetPrecondition<'_>> for Diagnostic {
+    fn from(value: UnmetPrecondition) -> Self {
+        Diagnostic::error()
+            .with_message(if value.certain {
+                "precondition not satisfied"
+            } else {
+                "failed to prove precondition"
+            })
+            .with_secondary(
+                value.requires.span,
+                format!("required by `{}`", value.callee.symbol),
+            )
+            .with_primary(
+                value.callee.span,
+                format!("precondition for {} not satisfied", value.kind),
             )
     }
 }

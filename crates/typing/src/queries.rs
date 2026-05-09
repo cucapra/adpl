@@ -131,6 +131,31 @@ impl Equivalent for Index<ty::Expression> {
     }
 }
 
+pub trait Entailed {
+    type Context;
+
+    fn entailed(self, asserts: &z3::Solver, ctx: &Self::Context) -> LBool;
+}
+
+impl<T: IntoSmt<Output = ast::Bool>> Entailed for T {
+    type Context = <T as IntoSmt>::Context;
+
+    fn entailed(self, asserts: &z3::Solver, ctx: &Self::Context) -> LBool {
+        asserts.push();
+        asserts.assert(!self.into_smt(ctx));
+
+        let result = match asserts.check() {
+            z3::SatResult::Unsat => LBool::True,
+            z3::SatResult::Unknown => LBool::Unknown,
+            z3::SatResult::Sat => LBool::False,
+        };
+
+        asserts.pop(1);
+
+        result
+    }
+}
+
 pub trait IntoSmt {
     type Output: ast::Ast;
     type Context;
@@ -159,6 +184,36 @@ impl IntoSmt for Index<ty::Expression> {
                     ty::BinaryOp::Mul => lhs * rhs,
                     ty::BinaryOp::Div => lhs / rhs,
                     ty::BinaryOp::Pow => lhs.power(rhs),
+                }
+            }
+        }
+    }
+}
+
+impl IntoSmt for Index<ty::Proposition> {
+    type Output = ast::Bool;
+    type Context = TypeArenas;
+
+    fn into_smt(self, ctx: &TypeArenas) -> ast::Bool {
+        match ctx[self] {
+            ty::Proposition::Not(prop) => !prop.into_smt(ctx),
+            ty::Proposition::And(lhs, rhs) => {
+                lhs.into_smt(ctx) & rhs.into_smt(ctx)
+            }
+            ty::Proposition::Or(lhs, rhs) => {
+                lhs.into_smt(ctx) | rhs.into_smt(ctx)
+            }
+            ty::Proposition::Relation(p, lhs, rhs) => {
+                let lhs = lhs.into_smt(ctx);
+                let rhs = rhs.into_smt(ctx);
+
+                match p {
+                    ty::Predicate::Eq => lhs.eq(rhs),
+                    ty::Predicate::Ne => lhs.ne(rhs),
+                    ty::Predicate::Gt => lhs.gt(rhs),
+                    ty::Predicate::Ge => lhs.ge(rhs),
+                    ty::Predicate::Lt => lhs.lt(rhs),
+                    ty::Predicate::Le => lhs.le(rhs),
                 }
             }
         }

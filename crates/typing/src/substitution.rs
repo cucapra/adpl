@@ -1,6 +1,6 @@
 use adpl_arena::{Index, Interned};
 
-use crate::types::{Expression, Type, TypeArenas};
+use crate::types::{Expression, Proposition, Type, TypeArenas};
 
 pub trait Folder<T> {
     fn fold_param(&self, index: usize) -> T;
@@ -77,6 +77,41 @@ impl Foldable<Index<Expression>> for Index<Expression> {
                 let rhs = rhs.fold_with(ctx, folder);
 
                 ctx.intern(Expression::Binary(op, lhs, rhs))
+            }
+        }
+    }
+}
+
+impl Foldable<Index<Expression>> for Index<Proposition> {
+    type Context = TypeArenas;
+
+    fn fold_with<F>(self, ctx: &mut Self::Context, folder: &F) -> Self
+    where
+        F: Folder<Index<Expression>> + ?Sized,
+    {
+        match ctx[self] {
+            Proposition::Not(prop) => {
+                let prop = prop.fold_with(ctx, folder);
+
+                ctx.intern(Proposition::Not(prop))
+            }
+            Proposition::And(lhs, rhs) => {
+                let lhs = lhs.fold_with(ctx, folder);
+                let rhs = rhs.fold_with(ctx, folder);
+
+                ctx.intern(Proposition::And(lhs, rhs))
+            }
+            Proposition::Or(lhs, rhs) => {
+                let lhs = lhs.fold_with(ctx, folder);
+                let rhs = rhs.fold_with(ctx, folder);
+
+                ctx.intern(Proposition::Or(lhs, rhs))
+            }
+            Proposition::Relation(p, lhs, rhs) => {
+                let lhs = lhs.fold_with(&mut ctx.exprs, folder);
+                let rhs = rhs.fold_with(&mut ctx.exprs, folder);
+
+                ctx.intern(Proposition::Relation(p, lhs, rhs))
             }
         }
     }
