@@ -111,21 +111,21 @@ where
             };
 
         atom.pratt((
-            postfix(7, just(Token::Dot).ignore_then(id), |lhs, id, e| {
+            postfix(9, just(Token::Dot).ignore_then(id), |lhs, id, e| {
                 ast::Expression {
                     kind: ast::ExprKind::Field(Box::new(lhs), id),
                     span: ast::Span::from(e.span()),
                 }
             }),
             infix(
-                right(6),
+                right(8),
                 just(Token::Caret)
                     .to(ast::BinaryKind::Pow)
                     .map_with(map_binary),
                 fold_binary,
             ),
             prefix(
-                5,
+                7,
                 choice((
                     just(Token::Minus).to(ast::UnaryKind::Neg),
                     just(Token::Bang).to(ast::UnaryKind::Not),
@@ -140,7 +140,7 @@ where
                 },
             ),
             infix(
-                left(4),
+                left(6),
                 choice((
                     just(Token::Star).to(ast::BinaryKind::Mul),
                     just(Token::Slash).to(ast::BinaryKind::Div),
@@ -149,7 +149,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(3),
+                left(5),
                 choice((
                     just(Token::Plus).to(ast::BinaryKind::Add),
                     just(Token::Minus).to(ast::BinaryKind::Sub),
@@ -158,7 +158,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(2),
+                left(4),
                 choice((
                     just(Token::Shl).to(ast::BinaryKind::Shl),
                     just(Token::Shr).to(ast::BinaryKind::Shr),
@@ -167,7 +167,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(1),
+                left(3),
                 choice((
                     just(Token::Gt).to(ast::BinaryKind::Gt),
                     just(Token::Ge).to(ast::BinaryKind::Ge),
@@ -178,12 +178,24 @@ where
                 fold_binary,
             ),
             infix(
-                left(0),
+                left(2),
                 choice((
                     just(Token::Eq).to(ast::BinaryKind::Eq),
                     just(Token::Ne).to(ast::BinaryKind::Ne),
                 ))
                 .map_with(map_binary),
+                fold_binary,
+            ),
+            infix(
+                left(1),
+                just(Token::And)
+                    .to(ast::BinaryKind::And)
+                    .map_with(map_binary),
+                fold_binary,
+            ),
+            infix(
+                left(0),
+                just(Token::Or).to(ast::BinaryKind::Or).map_with(map_binary),
                 fold_binary,
             ),
         ))

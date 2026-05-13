@@ -373,45 +373,62 @@ impl ItemContext<'_, '_> {
                     Ok(self.tcx.arenas.intern(ty::Proposition::Not(arg)))
                 }
             },
-            hir::ExprKind::Binary(ref op, lhs, rhs) => {
-                let (lhs, lhs_ty) = self.lower_expression(lhs)?;
-                let (rhs, rhs_ty) = self.lower_expression(rhs)?;
+            hir::ExprKind::Binary(ref op, lhs, rhs) => match op.kind {
+                hir::BinaryKind::And => {
+                    let lhs = self.lower_proposition(lhs)?;
+                    let rhs = self.lower_proposition(rhs)?;
 
-                let found = op
-                    .kind
-                    .select_binary_overload(lhs_ty, rhs_ty, &self.tcx.arenas)
-                    .ok_or_else(|| {
+                    Ok(self.tcx.arenas.intern(ty::Proposition::And(lhs, rhs)))
+                }
+                hir::BinaryKind::Or => {
+                    let lhs = self.lower_proposition(lhs)?;
+                    let rhs = self.lower_proposition(rhs)?;
+
+                    Ok(self.tcx.arenas.intern(ty::Proposition::Or(lhs, rhs)))
+                }
+                kind => {
+                    let (lhs, lhs_ty) = self.lower_expression(lhs)?;
+                    let (rhs, rhs_ty) = self.lower_expression(rhs)?;
+
+                    let found = kind
+                        .select_binary_overload(
+                            lhs_ty,
+                            rhs_ty,
+                            &self.tcx.arenas,
+                        )
+                        .ok_or_else(|| {
+                            self.reporter.emit(Diagnostic::from(
+                                errors::NoMatchingBinaryOverload {
+                                    op,
+                                    lhs: lhs_ty,
+                                    rhs: rhs_ty,
+                                    printer: &self.printer(),
+                                },
+                            ));
+
+                            TypingError
+                        })?;
+
+                    let Ok(op) = kind.try_into() else {
                         self.reporter.emit(Diagnostic::from(
-                            errors::NoMatchingBinaryOverload {
-                                op,
-                                lhs: lhs_ty,
-                                rhs: rhs_ty,
+                            errors::IncompatibleTypes {
+                                expr: &self.hir[expr],
+                                expected: self.tcx.arenas.prims.bool,
+                                found,
+                                certain: true,
                                 printer: &self.printer(),
                             },
                         ));
 
-                        TypingError
-                    })?;
+                        return Err(TypingError);
+                    };
 
-                let Ok(op) = op.kind.try_into() else {
-                    self.reporter.emit(Diagnostic::from(
-                        errors::IncompatibleTypes {
-                            expr: &self.hir[expr],
-                            expected: self.tcx.arenas.prims.bool,
-                            found,
-                            certain: true,
-                            printer: &self.printer(),
-                        },
-                    ));
-
-                    return Err(TypingError);
-                };
-
-                Ok(self
-                    .tcx
-                    .arenas
-                    .intern(ty::Proposition::Relation(op, lhs, rhs)))
-            }
+                    Ok(self
+                        .tcx
+                        .arenas
+                        .intern(ty::Proposition::Relation(op, lhs, rhs)))
+                }
+            },
             hir::ExprKind::Call(_) => {
                 Err(self.lower_expression(expr).unwrap_err())
             }

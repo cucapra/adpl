@@ -149,6 +149,10 @@
           "match": "[+*/^]|(-(?!>))|<<|>>|=|\\!=|((?<!-)>)|>=|<|<=|\\!"
         },
         {
+          "name": "keyword.operator.wordlike.adpl",
+          "match": "\\b(and|or)\\b"
+        },
+        {
           "name": "storage.type.adpl",
           "match": "\\b(bool|def|ieee|int|struct|uint)\\b"
         },

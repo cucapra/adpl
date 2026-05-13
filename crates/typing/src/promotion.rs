@@ -84,6 +84,10 @@ impl Overloaded for hir::BinaryKind {
                 _ => None,
             },
             hir::BinaryKind::Shl | hir::BinaryKind::Shr => None,
+            hir::BinaryKind::And | hir::BinaryKind::Or => match &ctx[lub] {
+                Type::Bool => Some(lub),
+                _ => None,
+            },
             hir::BinaryKind::Eq | hir::BinaryKind::Ne => match &ctx[lub] {
                 Type::Real | Type::Integer | Type::Bool => Some(ctx.prims.bool),
                 _ => None,

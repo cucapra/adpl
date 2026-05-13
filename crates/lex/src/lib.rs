@@ -47,6 +47,10 @@ pub enum Token<'src> {
     #[token(">>")]
     Shr,
 
+    #[token("and")]
+    And,
+    #[token("or")]
+    Or,
     #[token("!")]
     Bang,
     #[token("=")]
