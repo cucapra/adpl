@@ -194,6 +194,23 @@ impl From<UnmetPrecondition<'_>> for Diagnostic {
     }
 }
 
+pub struct AssertionFailed<'a> {
+    pub assert: &'a hir::Statement,
+    pub certain: bool,
+}
+
+impl From<AssertionFailed<'_>> for Diagnostic {
+    fn from(value: AssertionFailed) -> Self {
+        Diagnostic::error()
+            .with_message(if value.certain {
+                "assertion does not hold"
+            } else {
+                "failed to prove assertion"
+            })
+            .with_primary(value.assert.span, "assertion failed")
+    }
+}
+
 pub struct TypeHasNoFields<'a> {
     pub ty: Index<Type>,
     pub field: &'a hir::Id,

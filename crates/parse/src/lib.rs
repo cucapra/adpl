@@ -220,6 +220,10 @@ where
                         rhs,
                     })
                 }),
+            just(Token::Assert)
+                .ignore_then(expr.clone())
+                .then_ignore(just(Token::Semicolon))
+                .map(ast::StmtKind::Assert),
             just(Token::Return)
                 .ignore_then(expr.clone())
                 .then_ignore(just(Token::Semicolon))

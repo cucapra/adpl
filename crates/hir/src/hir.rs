@@ -70,6 +70,7 @@ pub struct Statement {
 pub enum StmtKind {
     Assign(Index<Local>, Index<Expression>),
     Const(Index<Local>, Index<Expression>),
+    Assert(Index<Expression>),
     Return(Index<Expression>),
     Unsafe(List<Statement>),
 }

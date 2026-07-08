@@ -142,7 +142,7 @@
       "patterns": [
         {
           "name": "keyword.control.adpl",
-          "match": "\\b(else|if|return)\\b"
+          "match": "\\b(assert|else|if|return)\\b"
         },
         {
           "name": "keyword.operator.adpl",

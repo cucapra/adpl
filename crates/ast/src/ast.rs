@@ -84,6 +84,7 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StmtKind {
     Assign(Assignment),
+    Assert(Expression),
     Return(Expression),
     Unsafe(Block),
 }

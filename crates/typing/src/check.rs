@@ -312,9 +312,20 @@ impl ItemContext<'_, '_> {
     ) -> Result<Index<ty::Proposition>> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
-                hir::LocalKind::Let(_) => unreachable!(),
-                hir::LocalKind::Const(_) => unreachable!(),
-                hir::LocalKind::Param(_) => {
+                hir::LocalKind::Const(_) => {
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleTypes {
+                            expr: &self.hir[expr],
+                            expected: self.tcx.arenas.prims.bool,
+                            found: self.tcx.env[local],
+                            certain: true,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    Err(TypingError)
+                }
+                hir::LocalKind::Let(_) | hir::LocalKind::Param(_) => {
                     self.reporter.emit(errors::ExpectedConst {
                         expr: &self.hir[expr],
                     });
@@ -818,6 +829,27 @@ impl DefinitionContext<'_, '_> {
 
                 self.icx.tcx.env[local] = ty;
                 self.icx.lowering.consts.insert(local, lowered);
+
+                Ok(Termination::Unit)
+            }
+            hir::StmtKind::Assert(expr) => {
+                let prop =
+                    self.icx.within("assertion").lower_proposition(expr)?;
+
+                if let result @ (LBool::False | LBool::Unknown) =
+                    prop.entailed(self.icx.asserts(), &self.icx.tcx.arenas)
+                {
+                    self.icx.reporter.emit(errors::AssertionFailed {
+                        assert: &self.icx.hir[stmt],
+                        certain: result == LBool::False,
+                    });
+
+                    return Err(TypingError);
+                }
+
+                self.icx
+                    .asserts()
+                    .assert(prop.into_smt(&self.icx.tcx.arenas));
 
                 Ok(Termination::Unit)
             }

@@ -349,6 +349,9 @@ impl LoweringContext<'_, '_> {
                     ast::Modifier::Const => hir::StmtKind::Const(local, expr),
                 }
             }
+            ast::StmtKind::Assert(expr) => {
+                hir::StmtKind::Assert(self.lower_expression(expr)?)
+            }
             ast::StmtKind::Return(expr) => {
                 hir::StmtKind::Return(self.lower_expression(expr)?)
             }
