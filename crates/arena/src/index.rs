@@ -78,6 +78,11 @@ impl<T> Hash for Index<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.index.hash(state)
     }
+
+    #[inline]
+    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H) {
+        IndexInner::hash_slice(data.as_inner(), state)
+    }
 }
 
 impl<T> PartialOrd for Index<T> {
