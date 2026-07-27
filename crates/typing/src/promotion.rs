@@ -101,7 +101,7 @@ impl Overloaded<(Index<Type>, Index<Type>)> for hir::BinaryKind {
                 _ => None,
             },
             hir::BinaryKind::Eq | hir::BinaryKind::Ne => match &ctx[common] {
-                Type::Real | Type::Integer | Type::Bool => Some(ctx.prims.bool),
+                Type::Real | Type::Integer => Some(ctx.prims.bool),
                 _ => None,
             },
             hir::BinaryKind::Gt

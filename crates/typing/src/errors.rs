@@ -7,6 +7,7 @@ use crate::printer::{Pretty, Printer};
 use crate::types::{Index, Type};
 
 pub enum OpKind<'a> {
+    Field(&'a hir::Id),
     Unary(&'a hir::UnaryOp),
     Binary(&'a hir::BinaryOp),
     Call(&'a hir::Call),
@@ -16,6 +17,7 @@ pub enum OpKind<'a> {
 impl OpKind<'_> {
     fn span(&self) -> hir::Span {
         match self {
+            OpKind::Field(field) => field.span,
             OpKind::Unary(op) => op.span,
             OpKind::Binary(op) => op.span,
             OpKind::Call(call) => call.name.span,
@@ -27,6 +29,7 @@ impl OpKind<'_> {
 impl fmt::Display for OpKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            OpKind::Field(_) => write!(f, "field access"),
             OpKind::Unary(op) => write!(f, "operator `{}`", op.kind.as_str()),
             OpKind::Binary(op) => write!(f, "operator `{}`", op.kind.as_str()),
             OpKind::Call(call) => write!(f, "`{}`", call.name.symbol),
