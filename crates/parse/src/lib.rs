@@ -202,8 +202,8 @@ where
     });
 
     let block = recursive(|block| {
-        let modifier = just(Token::Const)
-            .to(ast::Modifier::Const)
+        let modifier = just(Token::Real)
+            .to(ast::Modifier::Real)
             .or_not()
             .map(|modifier| modifier.unwrap_or(ast::Modifier::None));
 
@@ -300,10 +300,17 @@ where
         .or_not()
         .map(|safety| safety.unwrap_or(ast::Safety::Safe));
 
-    let params = id
+    let modifier = just(Token::Real)
+        .to(ast::Modifier::Real)
+        .or_not()
+        .map(|modifier| modifier.unwrap_or(ast::Modifier::None));
+
+    let params = modifier
+        .then(id)
         .then_ignore(just(Token::Colon))
         .then(ty.clone())
-        .map_with(|(name, ty), e| ast::Parameter {
+        .map_with(|((modifier, name), ty), e| ast::Parameter {
+            modifier,
             name,
             ty,
             span: ast::Span::from(e.span()),

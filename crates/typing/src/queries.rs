@@ -169,7 +169,9 @@ impl IntoSmt for Index<ty::Expression> {
 
     fn into_smt(self, ctx: &TypeArenas) -> ast::Real {
         match ctx[self] {
-            ty::Expression::Param(i) => ast::Real::new_const(u32::from(i)),
+            ty::Expression::Param(_)
+            | ty::Expression::GenericParam(_)
+            | ty::Expression::Term(_) => ast::Real::new_const(self.inner()),
             ty::Expression::Const(value) => {
                 ast::Real::from_int(&ast::Int::from_u64(value))
             }

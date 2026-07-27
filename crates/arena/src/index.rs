@@ -50,7 +50,7 @@ impl<T> Index<T> {
     }
 
     #[inline]
-    pub(crate) fn inner(self) -> IndexInner {
+    pub fn inner(self) -> u32 {
         self.index
     }
 }

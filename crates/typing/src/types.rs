@@ -35,6 +35,8 @@ impl TryFrom<hir::BinaryKind> for BinaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Expression {
     Param(u16),
+    GenericParam(u16),
+    Term(Index<hir::Expression>),
     Const(u64),
     Neg(Index<Expression>),
     Binary(BinaryOp, Index<Expression>, Index<Expression>),
@@ -89,6 +91,15 @@ pub enum Type {
         name: Index<hir::Record>,
         args: Box<[Index<Expression>]>,
     },
+}
+
+impl Type {
+    pub fn is_real_valued(&self) -> bool {
+        matches!(
+            self,
+            Type::Real | Type::Integer | Type::Int(_) | Type::UInt(_)
+        )
+    }
 }
 
 pub struct PrimitiveTypes {

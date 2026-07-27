@@ -1,6 +1,7 @@
 pub use adpl_arena::{Index, IndexRange, List, NonMaxIndex};
 pub use adpl_ast::{
-    BinaryKind, BinaryOp, Id, Literal, Safety, Span, Symbol, UnaryKind, UnaryOp,
+    BinaryKind, BinaryOp, Id, Literal, Modifier, Safety, Span, Symbol,
+    UnaryKind, UnaryOp,
 };
 
 #[derive(Debug)]
@@ -55,6 +56,7 @@ pub struct Definition {
 
 #[derive(Debug)]
 pub struct Parameter {
+    pub modifier: Modifier,
     pub local: Index<Local>,
     pub ty: Index<Type>,
     pub span: Span,
@@ -68,8 +70,8 @@ pub struct Statement {
 
 #[derive(Debug)]
 pub enum StmtKind {
-    Assign(Index<Local>, Index<Expression>),
-    Const(Index<Local>, Index<Expression>),
+    Let(Index<Local>, Index<Expression>),
+    Real(Index<Local>, Index<Expression>),
     Assert(Index<Expression>),
     Return(Index<Expression>),
     Unsafe(List<Statement>),
@@ -101,7 +103,7 @@ pub struct Local {
 #[derive(Debug)]
 pub enum LocalKind {
     Let(Index<Expression>),
-    Const(Index<Expression>),
+    Real(Index<Expression>),
     Param(u16),
     GenericParam(u16),
 }

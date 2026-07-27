@@ -25,6 +25,8 @@ pub enum Token<'src> {
     If,
     #[token("implements")]
     Implements,
+    #[token("real")]
+    Real,
     #[token("return")]
     Return,
     #[token("struct")]

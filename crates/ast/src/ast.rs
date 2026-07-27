@@ -67,9 +67,16 @@ pub struct Signature {
 
 #[derive(Debug)]
 pub struct Parameter {
+    pub modifier: Modifier,
     pub name: Id,
     pub ty: Type,
     pub span: Span,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Modifier {
+    None,
+    Real,
 }
 
 #[derive(Debug)]
@@ -94,12 +101,6 @@ pub struct Assignment {
     pub modifier: Modifier,
     pub lhs: Id,
     pub rhs: Expression,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Modifier {
-    None,
-    Const,
 }
 
 #[derive(Debug)]

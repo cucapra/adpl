@@ -65,15 +65,54 @@ impl From<WarnUnreachable<'_>> for Diagnostic {
     }
 }
 
-pub struct ExpectedConst<'a> {
+pub struct ExpectedProposition<'a> {
     pub expr: &'a hir::Expression,
 }
 
-impl From<ExpectedConst<'_>> for Diagnostic {
-    fn from(value: ExpectedConst) -> Self {
+impl From<ExpectedProposition<'_>> for Diagnostic {
+    fn from(value: ExpectedProposition) -> Self {
         Diagnostic::error()
-            .with_message("use of non-constant value in a constant context")
-            .with_primary(value.expr.span, "not a constant")
+            .with_message("expected proposition, found term")
+            .with_primary(
+                value.expr.span,
+                "term may not be used as a proposition",
+            )
+    }
+}
+
+pub struct DeclaredTypeNotRealValued<'a> {
+    pub name: &'a hir::Id,
+    pub ty: &'a hir::Type,
+}
+
+impl From<DeclaredTypeNotRealValued<'_>> for Diagnostic {
+    fn from(value: DeclaredTypeNotRealValued) -> Self {
+        Diagnostic::error()
+            .with_message(format!(
+                "real `{}` has non-real type",
+                value.name.symbol,
+            ))
+            .with_primary(value.ty.span, "expected a real-valued type")
+    }
+}
+
+pub struct TypeNotRealValued<'a> {
+    pub expr: &'a hir::Expression,
+    pub ty: Index<Type>,
+    pub printer: &'a Printer<'a>,
+}
+
+impl From<TypeNotRealValued<'_>> for Diagnostic {
+    fn from(value: TypeNotRealValued) -> Self {
+        Diagnostic::error()
+            .with_message("expected a real-valued type")
+            .with_primary(
+                value.expr.span,
+                format!(
+                    "type `{}` not real-valued",
+                    value.ty.pretty(value.printer),
+                ),
+            )
     }
 }
 

@@ -113,16 +113,16 @@ impl ty::BinaryOp {
 pub struct Printer<'a> {
     pub hir: &'a hir::Context,
     pub types: &'a ty::TypeArenas,
-    pub params: IndexRange<hir::Local>,
+    pub item: Index<hir::Item>,
 }
 
 impl<'a> Printer<'a> {
     pub fn new(
         hir: &'a hir::Context,
         types: &'a ty::TypeArenas,
-        params: IndexRange<hir::Local>,
+        item: Index<hir::Item>,
     ) -> Self {
-        Printer { hir, types, params }
+        Printer { hir, types, item }
     }
 
     fn print(
@@ -142,10 +142,17 @@ impl<'a> Printer<'a> {
     ) -> fmt::Result {
         match self.types[child] {
             ty::Expression::Param(i) => {
-                let param = &self.hir[self.params][usize::from(i)];
+                let param =
+                    &self.hir[self.hir[self.params()][usize::from(i)].local];
 
                 write!(w, "{}", param.name.symbol)
             }
+            ty::Expression::GenericParam(i) => {
+                let param = &self.hir[self.generics()][usize::from(i)];
+
+                write!(w, "{}", param.name.symbol)
+            }
+            ty::Expression::Term(_) => write!(w, "..."),
             ty::Expression::Const(value) => write!(w, "{value}"),
             ty::Expression::Neg(expr) => {
                 const PRECEDENCE: u8 = 3;
@@ -179,6 +186,20 @@ impl<'a> Printer<'a> {
 
                 Ok(())
             }
+        }
+    }
+
+    fn params(&self) -> IndexRange<hir::Parameter> {
+        match self.hir[self.item] {
+            hir::Item::Record(_) => panic!(),
+            hir::Item::Def(def) => self.hir[def].inputs,
+        }
+    }
+
+    fn generics(&self) -> IndexRange<hir::Local> {
+        match self.hir[self.item] {
+            hir::Item::Record(record) => self.hir[record].params,
+            hir::Item::Def(def) => self.hir[def].generics,
         }
     }
 }

@@ -4,11 +4,31 @@ use crate::types::{Expression, Proposition, Type, TypeArenas};
 
 pub trait Folder<T> {
     fn fold_param(&self, index: usize) -> T;
+
+    fn fold_generic(&self, index: usize) -> T;
 }
 
-impl Folder<Index<Expression>> for [Index<Expression>] {
+pub struct Arguments<'a> {
+    pub generics: &'a [Index<Expression>],
+    pub args: &'a [Index<Expression>],
+}
+
+impl<'a> Arguments<'a> {
+    pub fn new(
+        generics: &'a [Index<Expression>],
+        args: &'a [Index<Expression>],
+    ) -> Self {
+        Arguments { generics, args }
+    }
+}
+
+impl Folder<Index<Expression>> for Arguments<'_> {
     fn fold_param(&self, index: usize) -> Index<Expression> {
-        self[index]
+        self.args[index]
+    }
+
+    fn fold_generic(&self, index: usize) -> Index<Expression> {
+        self.generics[index]
     }
 }
 
@@ -66,6 +86,8 @@ impl Foldable<Index<Expression>> for Index<Expression> {
     {
         match ctx[self] {
             Expression::Param(i) => folder.fold_param(i.into()),
+            Expression::GenericParam(i) => folder.fold_generic(i.into()),
+            Expression::Term(_) => panic!(),
             Expression::Const(_) => self,
             Expression::Neg(expr) => {
                 let expr = expr.fold_with(ctx, folder);

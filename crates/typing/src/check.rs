@@ -9,7 +9,7 @@ use adpl_util::{Diagnostic, Reporter};
 use crate::printer::Printer;
 use crate::promotion::Overloaded;
 use crate::queries::{Entailed, Equivalent, IntoSmt, LBool};
-use crate::substitution::Foldable;
+use crate::substitution::{Arguments, Foldable};
 use crate::{errors, types as ty};
 
 pub fn check_hir(
@@ -19,7 +19,7 @@ pub fn check_hir(
     let mut tcx = TypingContext::with_default_env(hir);
     let mut lowering = LoweringContext::default();
 
-    for item in hir.items.values() {
+    for (index, item) in hir.items.iter() {
         match *item {
             hir::Item::Record(record) => {
                 let mut ctx = ItemContext {
@@ -28,7 +28,7 @@ pub fn check_hir(
                     tcx: &mut tcx,
                     lowering: &mut lowering,
                     asserts: OnceCell::new(),
-                    generics: hir[record].params,
+                    item: index,
                 };
 
                 ctx.check_record(record).ok()?;
@@ -43,7 +43,7 @@ pub fn check_hir(
                         tcx: &mut tcx,
                         lowering: &mut lowering,
                         asserts: OnceCell::new(),
-                        generics: hir[def].generics,
+                        item: index,
                     },
                     def,
                 };
@@ -92,13 +92,13 @@ impl TypingContext {
 
 #[derive(Default)]
 struct LoweringContext {
-    consts: HashMap<Index<hir::Local>, Index<ty::Expression>>,
+    reals: HashMap<Index<hir::Local>, Index<ty::Expression>>,
     context: Option<&'static str>,
 }
 
 impl LoweringContext {
     fn clear(&mut self) {
-        self.consts.clear();
+        self.reals.clear();
     }
 }
 
@@ -108,8 +108,7 @@ struct ItemContext<'a, 'src> {
     tcx: &'a mut TypingContext,
     lowering: &'a mut LoweringContext,
     asserts: OnceCell<z3::Solver>,
-    /// Generic parameters for the current item.
-    generics: hir::IndexRange<hir::Local>,
+    item: Index<hir::Item>,
 }
 
 impl ItemContext<'_, '_> {
@@ -179,16 +178,43 @@ impl ItemContext<'_, '_> {
     ) -> Result<Index<ty::Expression>> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
-                hir::LocalKind::Const(_) => Ok(self.lowering.consts[&local]),
-                hir::LocalKind::Let(_) | hir::LocalKind::Param(_) => {
-                    self.reporter.emit(errors::ExpectedConst {
-                        expr: &self.hir[expr],
-                    });
+                hir::LocalKind::Let(expr) => {
+                    let ty = self.tcx.env[local];
 
-                    Err(TypingError)
+                    if !self.tcx.arenas[ty].is_real_valued() {
+                        self.reporter.emit(Diagnostic::from(
+                            errors::TypeNotRealValued {
+                                expr: &self.hir[expr],
+                                ty,
+                                printer: &self.printer(),
+                            },
+                        ));
+
+                        return Err(TypingError);
+                    }
+
+                    Ok(self.tcx.arenas.intern(ty::Expression::Term(expr)))
+                }
+                hir::LocalKind::Real(_) => Ok(self.lowering.reals[&local]),
+                hir::LocalKind::Param(i) => {
+                    let ty = self.tcx.env[local];
+
+                    if !self.tcx.arenas[ty].is_real_valued() {
+                        self.reporter.emit(Diagnostic::from(
+                            errors::TypeNotRealValued {
+                                expr: &self.hir[expr],
+                                ty,
+                                printer: &self.printer(),
+                            },
+                        ));
+
+                        return Err(TypingError);
+                    }
+
+                    Ok(self.tcx.arenas.intern(ty::Expression::Param(i)))
                 }
                 hir::LocalKind::GenericParam(i) => {
-                    Ok(self.tcx.arenas.intern(ty::Expression::Param(i)))
+                    Ok(self.tcx.arenas.intern(ty::Expression::GenericParam(i)))
                 }
             },
             hir::ExprKind::Lit(ref literal) => {
@@ -276,18 +302,22 @@ impl ItemContext<'_, '_> {
         match self.hir[expr].kind {
             hir::ExprKind::Id(local) => match self.hir[local].kind {
                 hir::LocalKind::Let(_) | hir::LocalKind::Param(_) => {
-                    self.reporter.emit(errors::ExpectedConst {
+                    self.reporter.emit(errors::ExpectedProposition {
                         expr: &self.hir[expr],
                     });
 
                     Err(TypingError)
                 }
-                hir::LocalKind::Const(_) => unreachable!(),
+                hir::LocalKind::Real(_) => unreachable!(),
                 hir::LocalKind::GenericParam(_) => unreachable!(),
             },
             hir::ExprKind::Lit(_) => unreachable!(),
             hir::ExprKind::Field(..) => {
-                Err(self.lower_expression(expr).unwrap_err())
+                self.reporter.emit(errors::ExpectedProposition {
+                    expr: &self.hir[expr],
+                });
+
+                Err(TypingError)
             }
             hir::ExprKind::Unary(ref op, arg) => match op.kind {
                 hir::UnaryKind::Neg => unreachable!(),
@@ -323,7 +353,11 @@ impl ItemContext<'_, '_> {
                 }
             },
             hir::ExprKind::Call(_) => {
-                Err(self.lower_expression(expr).unwrap_err())
+                self.reporter.emit(errors::ExpectedProposition {
+                    expr: &self.hir[expr],
+                });
+
+                Err(TypingError)
             }
             hir::ExprKind::Record(_) => unreachable!(),
         }
@@ -364,7 +398,20 @@ impl ItemContext<'_, '_> {
         }
 
         for param in &self.hir[def.inputs] {
-            self.tcx.env[param.local] = self.lower_type(param.ty)?;
+            let ty = self.lower_type(param.ty)?;
+
+            if param.modifier == hir::Modifier::Real
+                && !self.tcx.arenas[ty].is_real_valued()
+            {
+                self.reporter.emit(errors::DeclaredTypeNotRealValued {
+                    name: &self.hir[param.local].name,
+                    ty: &self.hir[param.ty],
+                });
+
+                return Err(TypingError);
+            }
+
+            self.tcx.env[param.local] = ty;
         }
 
         let inputs = self.hir[def.inputs]
@@ -435,9 +482,11 @@ impl ItemContext<'_, '_> {
                     })?;
 
                 let field = self.tcx.records[record].fields[i];
-                let args = args.clone();
 
-                field.fold_with(&mut self.tcx.arenas, args.as_ref())
+                let args = args.clone();
+                let folder = Arguments::new(&args, &[]);
+
+                field.fold_with(&mut self.tcx.arenas, &folder)
             }
             hir::ExprKind::Unary(ref op, arg) => {
                 let arg = self.check_expression(arg)?;
@@ -486,6 +535,28 @@ impl ItemContext<'_, '_> {
                     .map(|&expr| self.check_expression(expr))
                     .collect::<Result<_>>()?;
 
+                let lowered: Vec<_> = self.hir[call.args]
+                    .iter()
+                    .zip(&args)
+                    .zip(&self.hir[self.hir[call.callee].inputs])
+                    .map(|((&expr, &ty), param)| match param.modifier {
+                        hir::Modifier::None => {
+                            Ok(if self.tcx.arenas[ty].is_real_valued() {
+                                self.tcx
+                                    .arenas
+                                    .intern(ty::Expression::Term(expr))
+                            } else {
+                                Index::INVALID
+                            })
+                        }
+                        hir::Modifier::Real => {
+                            self.within("argument").lower_expression(expr)
+                        }
+                    })
+                    .collect::<Result<_>>()?;
+
+                let folder = Arguments::new(&generics, &lowered);
+
                 let Signature {
                     requires,
                     inputs: ref params,
@@ -494,8 +565,8 @@ impl ItemContext<'_, '_> {
 
                 for (i, (&param, found)) in params.iter().zip(args).enumerate()
                 {
-                    let expected = param
-                        .fold_with(&mut self.tcx.arenas, generics.as_slice());
+                    let expected =
+                        param.fold_with(&mut self.tcx.arenas, &folder);
 
                     if let result @ (LBool::False | LBool::Unknown) =
                         found.equivalent(expected, &self.tcx.arenas)
@@ -515,9 +586,8 @@ impl ItemContext<'_, '_> {
                 }
 
                 if let Some(requires) = requires {
-                    let prop = requires
-                        .get()
-                        .fold_with(&mut self.tcx.arenas, generics.as_slice());
+                    let prop =
+                        requires.get().fold_with(&mut self.tcx.arenas, &folder);
 
                     if let result @ (LBool::False | LBool::Unknown) =
                         prop.entailed(self.asserts(), &self.tcx.arenas)
@@ -536,7 +606,7 @@ impl ItemContext<'_, '_> {
                     }
                 }
 
-                output.fold_with(&mut self.tcx.arenas, generics.as_slice())
+                output.fold_with(&mut self.tcx.arenas, &folder)
             }
             hir::ExprKind::Record(ref cons) => {
                 let args: Box<[_]> = self.hir[cons.generics]
@@ -549,6 +619,8 @@ impl ItemContext<'_, '_> {
                     .map(|&expr| self.check_expression(expr))
                     .collect::<Result<_>>()?;
 
+                let folder = Arguments::new(&args, &[]);
+
                 let Record {
                     requires,
                     ref fields,
@@ -557,7 +629,7 @@ impl ItemContext<'_, '_> {
                 for (i, (&field, found)) in fields.iter().zip(inits).enumerate()
                 {
                     let expected =
-                        field.fold_with(&mut self.tcx.arenas, args.as_ref());
+                        field.fold_with(&mut self.tcx.arenas, &folder);
 
                     if let result @ (LBool::False | LBool::Unknown) =
                         found.equivalent(expected, &self.tcx.arenas)
@@ -577,9 +649,8 @@ impl ItemContext<'_, '_> {
                 }
 
                 if let Some(requires) = requires {
-                    let prop = requires
-                        .get()
-                        .fold_with(&mut self.tcx.arenas, args.as_ref());
+                    let prop =
+                        requires.get().fold_with(&mut self.tcx.arenas, &folder);
 
                     if let result @ (LBool::False | LBool::Unknown) =
                         prop.entailed(self.asserts(), &self.tcx.arenas)
@@ -646,7 +717,7 @@ impl ItemContext<'_, '_> {
         Printer {
             hir: self.hir,
             types: &self.tcx.arenas,
-            params: self.generics,
+            item: self.item,
         }
     }
 
@@ -695,18 +766,18 @@ impl DefinitionContext<'_, '_> {
         stmt: Index<hir::Statement>,
     ) -> Result<Termination> {
         match self.icx.hir[stmt].kind {
-            hir::StmtKind::Assign(local, expr) => {
+            hir::StmtKind::Let(local, expr) => {
                 self.icx.tcx.env[local] = self.icx.check_expression(expr)?;
 
                 Ok(Termination::Unit)
             }
-            hir::StmtKind::Const(local, expr) => {
+            hir::StmtKind::Real(local, expr) => {
                 self.icx.tcx.env[local] = self.icx.check_expression(expr)?;
 
                 let lowered =
-                    self.icx.within("constant").lower_expression(expr)?;
+                    self.icx.within("expression").lower_expression(expr)?;
 
-                self.icx.lowering.consts.insert(local, lowered);
+                self.icx.lowering.reals.insert(local, lowered);
 
                 Ok(Termination::Unit)
             }

@@ -315,6 +315,7 @@ impl LoweringContext<'_, '_> {
         let ty = self.lower_type(&param.ty)?;
 
         Ok(self.ctx.add(hir::Parameter {
+            modifier: param.modifier,
             local,
             ty,
             span: param.span,
@@ -331,7 +332,7 @@ impl LoweringContext<'_, '_> {
 
                 let kind = match assn.modifier {
                     ast::Modifier::None => hir::LocalKind::Let(expr),
-                    ast::Modifier::Const => hir::LocalKind::Const(expr),
+                    ast::Modifier::Real => hir::LocalKind::Real(expr),
                 };
 
                 let local = self.ctx.add(hir::Local {
@@ -345,8 +346,8 @@ impl LoweringContext<'_, '_> {
                     .insert(assn.lhs.symbol, local);
 
                 match assn.modifier {
-                    ast::Modifier::None => hir::StmtKind::Assign(local, expr),
-                    ast::Modifier::Const => hir::StmtKind::Const(local, expr),
+                    ast::Modifier::None => hir::StmtKind::Let(local, expr),
+                    ast::Modifier::Real => hir::StmtKind::Real(local, expr),
                 }
             }
             ast::StmtKind::Assert(expr) => {
