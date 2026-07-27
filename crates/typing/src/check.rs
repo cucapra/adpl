@@ -228,7 +228,7 @@ impl ItemContext<'_, '_> {
 
                 let overload = op
                     .kind
-                    .select_overload(arg_ty, &self.tcx.arenas)
+                    .select_overload((arg_ty,), &self.tcx.arenas)
                     .ok_or_else(|| {
                         self.reporter.emit(Diagnostic::from(
                             errors::NoMatchingUnaryOverload {
@@ -257,7 +257,7 @@ impl ItemContext<'_, '_> {
 
                 let overload = op
                     .kind
-                    .select_binary_overload(lhs_ty, rhs_ty, &self.tcx.arenas)
+                    .select_overload((lhs_ty, rhs_ty), &self.tcx.arenas)
                     .ok_or_else(|| {
                         self.reporter.emit(Diagnostic::from(
                             errors::NoMatchingBinaryOverload {
@@ -402,11 +402,7 @@ impl ItemContext<'_, '_> {
                     let (rhs, rhs_ty) = self.lower_expression(rhs)?;
 
                     let found = kind
-                        .select_binary_overload(
-                            lhs_ty,
-                            rhs_ty,
-                            &self.tcx.arenas,
-                        )
+                        .select_overload((lhs_ty, rhs_ty), &self.tcx.arenas)
                         .ok_or_else(|| {
                             self.reporter.emit(Diagnostic::from(
                                 errors::NoMatchingBinaryOverload {
@@ -565,8 +561,9 @@ impl ItemContext<'_, '_> {
             hir::ExprKind::Unary(ref op, arg) => {
                 let arg = self.check_expression(arg)?;
 
-                op.kind.select_overload(arg, &self.tcx.arenas).ok_or_else(
-                    || {
+                op.kind
+                    .select_overload((arg,), &self.tcx.arenas)
+                    .ok_or_else(|| {
                         self.reporter.emit(Diagnostic::from(
                             errors::NoMatchingUnaryOverload {
                                 op,
@@ -576,15 +573,14 @@ impl ItemContext<'_, '_> {
                         ));
 
                         TypingError
-                    },
-                )?
+                    })?
             }
             hir::ExprKind::Binary(ref op, lhs, rhs) => {
                 let lhs = self.check_expression(lhs)?;
                 let rhs = self.check_expression(rhs)?;
 
                 op.kind
-                    .select_binary_overload(lhs, rhs, &self.tcx.arenas)
+                    .select_overload((lhs, rhs), &self.tcx.arenas)
                     .ok_or_else(|| {
                         self.reporter.emit(Diagnostic::from(
                             errors::NoMatchingBinaryOverload {

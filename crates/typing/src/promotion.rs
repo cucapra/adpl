@@ -2,100 +2,112 @@ use adpl_hir as hir;
 
 use crate::types::{Index, Type, TypeArenas};
 
-pub trait Lub<Rhs = Self> {
+pub trait Promote<Rhs = Self> {
     type Output;
     type Context;
 
-    fn lub(self, rhs: Rhs, ctx: &Self::Context) -> Self::Output;
+    fn promote(self, rhs: Rhs, ctx: &Self::Context) -> Self::Output;
 }
 
-impl Lub for Index<Type> {
+impl Promote for Index<Type> {
     type Output = Option<Index<Type>>;
     type Context = TypeArenas;
 
-    fn lub(self, rhs: Index<Type>, ctx: &TypeArenas) -> Option<Index<Type>> {
-        if self == rhs {
-            return Some(self);
-        }
-
-        match (&ctx[self], &ctx[rhs]) {
-            (Type::Real, Type::Integer) => Some(self),
-            (Type::Integer, Type::Real) => Some(rhs),
+    fn promote(
+        self,
+        rhs: Index<Type>,
+        ctx: &TypeArenas,
+    ) -> Option<Index<Type>> {
+        match &ctx[self] {
+            Type::Real => match &ctx[rhs] {
+                Type::Real | Type::Integer | Type::Int(_) | Type::UInt(_) => {
+                    Some(self)
+                }
+                _ => None,
+            },
+            Type::Integer => match &ctx[rhs] {
+                Type::Real => Some(rhs),
+                Type::Integer | Type::Int(_) | Type::UInt(_) => Some(self),
+                _ => None,
+            },
+            Type::Bool => match &ctx[rhs] {
+                Type::Bool => Some(self),
+                _ => None,
+            },
+            Type::Int(_) | Type::UInt(_) => match &ctx[rhs] {
+                Type::Real | Type::Integer => Some(rhs),
+                Type::Int(_) | Type::UInt(_) => Some(ctx.prims.integer),
+                _ => None,
+            },
             _ => None,
         }
     }
 }
 
-pub trait Overloaded: Sized {
+pub trait Overloaded<Args> {
     fn select_overload(
         self,
-        lub: Index<Type>,
+        args: Args,
         ctx: &TypeArenas,
     ) -> Option<Index<Type>>;
-
-    fn select_binary_overload(
-        self,
-        lhs: Index<Type>,
-        rhs: Index<Type>,
-        ctx: &TypeArenas,
-    ) -> Option<Index<Type>> {
-        self.select_overload(lhs.lub(rhs, ctx)?, ctx)
-    }
 }
 
-impl Overloaded for hir::UnaryKind {
+impl Overloaded<(Index<Type>,)> for hir::UnaryKind {
     fn select_overload(
         self,
-        lub: Index<Type>,
+        args: (Index<Type>,),
         ctx: &TypeArenas,
     ) -> Option<Index<Type>> {
         match self {
-            hir::UnaryKind::Neg => match &ctx[lub] {
-                Type::Real | Type::Integer => Some(lub),
+            hir::UnaryKind::Neg => match &ctx[args.0] {
+                Type::Real | Type::Integer => Some(args.0),
+                Type::Int(_) | Type::UInt(_) => Some(ctx.prims.integer),
                 _ => None,
             },
-            hir::UnaryKind::Not => match &ctx[lub] {
-                Type::Bool => Some(lub),
+            hir::UnaryKind::Not => match &ctx[args.0] {
+                Type::Bool => Some(args.0),
                 _ => None,
             },
         }
     }
 }
 
-impl Overloaded for hir::BinaryKind {
+impl Overloaded<(Index<Type>, Index<Type>)> for hir::BinaryKind {
     fn select_overload(
         self,
-        lub: Index<Type>,
+        args: (Index<Type>, Index<Type>),
         ctx: &TypeArenas,
     ) -> Option<Index<Type>> {
+        let common = Promote::promote(args.0, args.1, ctx)?;
+
         match self {
             hir::BinaryKind::Add
             | hir::BinaryKind::Sub
-            | hir::BinaryKind::Mul => match &ctx[lub] {
-                Type::Real | Type::Integer => Some(lub),
+            | hir::BinaryKind::Mul => match &ctx[common] {
+                Type::Real | Type::Integer => Some(common),
                 _ => None,
             },
-            hir::BinaryKind::Div => match &ctx[lub] {
+            hir::BinaryKind::Div => match &ctx[common] {
                 Type::Real | Type::Integer => Some(ctx.prims.real),
                 _ => None,
             },
-            hir::BinaryKind::Pow => match &ctx[lub] {
+            hir::BinaryKind::Pow => match &ctx[common] {
                 Type::Integer => Some(ctx.prims.real),
                 _ => None,
             },
             hir::BinaryKind::Shl | hir::BinaryKind::Shr => None,
-            hir::BinaryKind::And | hir::BinaryKind::Or => match &ctx[lub] {
-                Type::Bool => Some(lub),
+            hir::BinaryKind::And | hir::BinaryKind::Or => match &ctx[common] {
+                Type::Bool => Some(common),
                 _ => None,
             },
-            hir::BinaryKind::Eq | hir::BinaryKind::Ne => match &ctx[lub] {
+            hir::BinaryKind::Eq | hir::BinaryKind::Ne => match &ctx[common] {
                 Type::Real | Type::Integer | Type::Bool => Some(ctx.prims.bool),
                 _ => None,
             },
             hir::BinaryKind::Gt
             | hir::BinaryKind::Ge
             | hir::BinaryKind::Lt
-            | hir::BinaryKind::Le => match &ctx[lub] {
+            | hir::BinaryKind::Le => match &ctx[common] {
                 Type::Real | Type::Integer => Some(ctx.prims.bool),
                 _ => None,
             },
