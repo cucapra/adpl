@@ -76,6 +76,7 @@ pub struct TypingContext {
     pub arenas: ty::TypeArenas,
     pub records: DenseMap<hir::Record, Record>,
     pub signatures: DenseMap<hir::Definition, Signature>,
+    pub specs: DenseMap<hir::Definition, Option<NonMaxIndex<ty::Expression>>>,
     pub env: DenseMap<hir::Local, Index<ty::Type>>,
 }
 
@@ -85,6 +86,7 @@ impl TypingContext {
             arenas: ty::TypeArenas::new(),
             records: DenseMap::new(),
             signatures: DenseMap::new(),
+            specs: DenseMap::filled_with_default(hir.defs.len()),
             env: DenseMap::filled(hir.locals.len(), Index::ZERO),
         }
     }
@@ -430,6 +432,17 @@ impl ItemContext<'_, '_> {
             })
             .transpose()?;
 
+        self.tcx.specs[index] = def
+            .implements
+            .map(|expr| {
+                self.check_expression(expr.get())?;
+
+                self.within("specification")
+                    .lower_expression(expr.get())
+                    .map(|index| index.try_into().unwrap())
+            })
+            .transpose()?;
+
         let output = self.lower_type(def.output)?;
 
         let signature = Signature {
@@ -736,15 +749,6 @@ impl DefinitionContext<'_, '_> {
         self.icx.check_signature(self.def)?;
 
         let def = &self.icx.hir[self.def];
-
-        if let Some(expr) = def.implements {
-            let expr = expr.get();
-
-            self.icx.reporter.emit(errors::WarnNotChecked {
-                what: "specifications",
-                expr: &self.icx.hir[expr],
-            });
-        }
 
         if let Some(block) = def.body {
             let termination = self.check_block(block)?;

@@ -38,33 +38,6 @@ impl fmt::Display for OpKind<'_> {
     }
 }
 
-pub struct WarnNotChecked<'a> {
-    pub what: &'a str,
-    pub expr: &'a hir::Expression,
-}
-
-impl From<WarnNotChecked<'_>> for Diagnostic {
-    fn from(value: WarnNotChecked) -> Self {
-        Diagnostic::warning()
-            .with_message(format!("{} are not yet checked", value.what))
-            .with_primary(value.expr.span, "")
-    }
-}
-
-pub struct WarnUnreachable<'a> {
-    pub divergent: &'a hir::Statement,
-    pub unreachable: &'a hir::Statement,
-}
-
-impl From<WarnUnreachable<'_>> for Diagnostic {
-    fn from(value: WarnUnreachable) -> Self {
-        Diagnostic::warning()
-            .with_message("unreachable statement")
-            .with_secondary(value.divergent.span, "execution ends here")
-            .with_primary(value.unreachable.span, "unreachable statement")
-    }
-}
-
 pub struct ExpectedProposition<'a> {
     pub expr: &'a hir::Expression,
 }
@@ -301,5 +274,19 @@ impl From<MissingReturn<'_>> for Diagnostic {
                 value.def.span,
                 "body ends without a `return` statement",
             )
+    }
+}
+
+pub struct WarnUnreachable<'a> {
+    pub divergent: &'a hir::Statement,
+    pub unreachable: &'a hir::Statement,
+}
+
+impl From<WarnUnreachable<'_>> for Diagnostic {
+    fn from(value: WarnUnreachable) -> Self {
+        Diagnostic::warning()
+            .with_message("unreachable statement")
+            .with_secondary(value.divergent.span, "execution ends here")
+            .with_primary(value.unreachable.span, "unreachable statement")
     }
 }
