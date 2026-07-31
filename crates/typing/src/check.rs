@@ -34,8 +34,6 @@ pub fn check_hir(
                 ctx.check_record(record).ok()?;
             }
             hir::Item::Def(def) => {
-                lowering.clear();
-
                 let mut ctx = DefinitionContext {
                     icx: ItemContext {
                         hir,
@@ -51,6 +49,8 @@ pub fn check_hir(
                 ctx.check_definition().ok()?;
             }
         }
+
+        lowering.clear();
     }
 
     Some(tcx)
@@ -95,12 +95,24 @@ impl TypingContext {
 #[derive(Default)]
 struct LoweringContext {
     reals: HashMap<Index<hir::Local>, Index<ty::Expression>>,
+    cache: HashMap<Index<hir::Expression>, Index<ty::Expression>>,
     context: Option<&'static str>,
 }
 
 impl LoweringContext {
+    fn cached(
+        &mut self,
+        key: Index<hir::Expression>,
+        value: Index<ty::Expression>,
+    ) -> Index<ty::Expression> {
+        self.cache.insert(key, value);
+
+        value
+    }
+
     fn clear(&mut self) {
         self.reals.clear();
+        self.cache.clear();
     }
 }
 
@@ -172,6 +184,14 @@ impl ItemContext<'_, '_> {
         }
 
         self.within("generic argument").lower_expression(expr)
+    }
+
+    fn cache_generic_argument(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Expression>> {
+        self.lower_generic_argument(expr)
+            .map(|lowered| self.lowering.cached(expr, lowered))
     }
 
     fn lower_expression(
@@ -256,12 +276,41 @@ impl ItemContext<'_, '_> {
                 Ok(self.tcx.arenas.intern(ty::Expression::Binary(op, lhs, rhs)))
             }
             hir::ExprKind::Call(ref call) => {
-                self.reporter.emit(errors::NoDenotation {
-                    op: errors::OpKind::Call(call),
-                    context: self.lowering.context.unwrap(),
-                });
+                let generics: Vec<_> = self.hir[call.generics]
+                    .iter()
+                    .map(|expr| self.lowering.cache[expr])
+                    .collect();
 
-                Err(TypingError)
+                let args: Vec<_> = self.hir[call.args]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &expr)| {
+                        let ty = self.tcx.signatures[call.callee].inputs[i];
+
+                        if self.tcx.arenas[ty].is_real_valued() {
+                            self.lowering
+                                .cache
+                                .get(&expr)
+                                .copied()
+                                .map_or_else(|| self.lower_expression(expr), Ok)
+                        } else {
+                            Ok(Index::INVALID)
+                        }
+                    })
+                    .collect::<Result<_>>()?;
+
+                let Some(spec) = self.tcx.specs[call.callee] else {
+                    self.reporter.emit(errors::NoDenotation {
+                        op: errors::OpKind::Call(call),
+                        context: self.lowering.context.unwrap(),
+                    });
+
+                    return Err(TypingError);
+                };
+
+                let folder = Arguments::new(&generics, &args);
+
+                Ok(spec.get().fold_with(&mut self.tcx.arenas.exprs, &folder))
             }
             hir::ExprKind::Record(ref cons) => {
                 self.reporter.emit(errors::NoDenotation {
@@ -272,6 +321,14 @@ impl ItemContext<'_, '_> {
                 Err(TypingError)
             }
         }
+    }
+
+    fn cache_expression(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Expression>> {
+        self.lower_expression(expr)
+            .map(|lowered| self.lowering.cached(expr, lowered))
     }
 
     fn lower_precondition(
@@ -540,7 +597,7 @@ impl ItemContext<'_, '_> {
             hir::ExprKind::Call(ref call) => {
                 let generics: Vec<_> = self.hir[call.generics]
                     .iter()
-                    .map(|&expr| self.lower_generic_argument(expr))
+                    .map(|&expr| self.cache_generic_argument(expr))
                     .collect::<Result<_>>()?;
 
                 let args: Vec<_> = self.hir[call.args]
@@ -563,7 +620,7 @@ impl ItemContext<'_, '_> {
                             })
                         }
                         hir::Modifier::Real => {
-                            self.within("argument").lower_expression(expr)
+                            self.within("argument").cache_expression(expr)
                         }
                     })
                     .collect::<Result<_>>()?;
