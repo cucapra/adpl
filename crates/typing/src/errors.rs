@@ -12,6 +12,7 @@ pub enum OpKind<'a> {
     Binary(&'a hir::BinaryOp),
     Call(&'a hir::Call),
     Record(&'a hir::Constructor),
+    If(&'a hir::Expression),
 }
 
 impl OpKind<'_> {
@@ -22,6 +23,7 @@ impl OpKind<'_> {
             OpKind::Binary(op) => op.span,
             OpKind::Call(call) => call.name.span,
             OpKind::Record(cons) => cons.name.span,
+            OpKind::If(expr) => expr.span,
         }
     }
 }
@@ -34,6 +36,7 @@ impl fmt::Display for OpKind<'_> {
             OpKind::Binary(op) => write!(f, "operator `{}`", op.kind.as_str()),
             OpKind::Call(call) => write!(f, "`{}`", call.name.symbol),
             OpKind::Record(_) => write!(f, "initializer"),
+            OpKind::If(_) => write!(f, "conditional"),
         }
     }
 }
@@ -178,6 +181,36 @@ impl From<IncompatibleTypes<'_>> for Diagnostic {
                     "expected type `{}`, found `{}`",
                     value.expected.pretty(value.printer),
                     value.found.pretty(value.printer),
+                ),
+            )
+    }
+}
+
+pub struct IncompatibleBranches<'a> {
+    pub then_expr: &'a hir::Expression,
+    pub else_expr: &'a hir::Expression,
+    pub then_ty: Index<Type>,
+    pub else_ty: Index<Type>,
+    pub printer: &'a Printer<'a>,
+}
+
+impl From<IncompatibleBranches<'_>> for Diagnostic {
+    fn from(value: IncompatibleBranches) -> Self {
+        Diagnostic::error()
+            .with_message("branches have incompatible types")
+            .with_secondary(
+                value.then_expr.span,
+                format!(
+                    "this has type `{}`",
+                    value.then_ty.pretty(value.printer),
+                ),
+            )
+            .with_primary(
+                value.else_expr.span,
+                format!(
+                    "expected type `{}`, found `{}`",
+                    value.then_ty.pretty(value.printer),
+                    value.else_ty.pretty(value.printer),
                 ),
             )
     }

@@ -320,6 +320,14 @@ impl ItemContext<'_, '_> {
 
                 Err(TypingError)
             }
+            hir::ExprKind::If(..) => {
+                self.reporter.emit(errors::NoDenotation {
+                    op: errors::OpKind::If(&self.hir[expr]),
+                    context: self.lowering.context.unwrap(),
+                });
+
+                Err(TypingError)
+            }
         }
     }
 
@@ -419,6 +427,13 @@ impl ItemContext<'_, '_> {
                 Err(TypingError)
             }
             hir::ExprKind::Record(_) => unreachable!(),
+            hir::ExprKind::If(..) => {
+                self.reporter.emit(errors::ExpectedProposition {
+                    expr: &self.hir[expr],
+                });
+
+                Err(TypingError)
+            }
         }
     }
 
@@ -743,6 +758,45 @@ impl ItemContext<'_, '_> {
                     name: cons.record,
                     args,
                 })
+            }
+            hir::ExprKind::If(cond, then, else_) => {
+                let cond_ty = self.check_expression(cond)?;
+                let bool_ty = self.tcx.arenas.prims.bool;
+
+                if cond_ty != bool_ty {
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleTypes {
+                            expr: &self.hir[cond],
+                            expected: bool_ty,
+                            found: cond_ty,
+                            certain: true,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    return Err(TypingError);
+                }
+
+                let then_ty = self.check_expression(then)?;
+                let else_ty = self.check_expression(else_)?;
+
+                if let LBool::False | LBool::Unknown =
+                    else_ty.equivalent(then_ty, &self.tcx.arenas)
+                {
+                    self.reporter.emit(Diagnostic::from(
+                        errors::IncompatibleBranches {
+                            then_expr: &self.hir[then],
+                            else_expr: &self.hir[else_],
+                            then_ty,
+                            else_ty,
+                            printer: &self.printer(),
+                        },
+                    ));
+
+                    return Err(TypingError);
+                }
+
+                then_ty
             }
         };
 

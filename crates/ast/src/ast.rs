@@ -118,6 +118,7 @@ pub enum ExprKind {
     Binary(BinaryOp, Box<Expression>, Box<Expression>),
     Call(Box<Call>),
     Record(Box<Constructor>),
+    If(Box<Expression>, Box<Expression>, Box<Expression>),
 }
 
 #[derive(Clone, Copy, Debug)]

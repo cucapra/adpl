@@ -92,6 +92,7 @@ pub enum ExprKind {
     Binary(BinaryOp, Index<Expression>, Index<Expression>),
     Call(Call),
     Record(Constructor),
+    If(Index<Expression>, Index<Expression>, Index<Expression>),
 }
 
 #[derive(Debug)]

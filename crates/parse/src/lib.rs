@@ -90,7 +90,8 @@ where
             call_like,
             id.map(ast::ExprKind::Id),
             lit.map(ast::ExprKind::Lit),
-            expr.map(|expr| expr.kind)
+            expr.clone()
+                .map(|expr| expr.kind)
                 .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
         ))
         .map_with(|kind, e| ast::Expression {
@@ -111,21 +112,21 @@ where
             };
 
         atom.pratt((
-            postfix(9, just(Token::Dot).ignore_then(id), |lhs, id, e| {
+            postfix(10, just(Token::Dot).ignore_then(id), |lhs, id, e| {
                 ast::Expression {
                     kind: ast::ExprKind::Field(Box::new(lhs), id),
                     span: ast::Span::from(e.span()),
                 }
             }),
             infix(
-                right(8),
+                right(9),
                 just(Token::Caret)
                     .to(ast::BinaryKind::Pow)
                     .map_with(map_binary),
                 fold_binary,
             ),
             prefix(
-                7,
+                8,
                 choice((
                     just(Token::Minus).to(ast::UnaryKind::Neg),
                     just(Token::Bang).to(ast::UnaryKind::Not),
@@ -140,7 +141,7 @@ where
                 },
             ),
             infix(
-                left(6),
+                left(7),
                 choice((
                     just(Token::Star).to(ast::BinaryKind::Mul),
                     just(Token::Slash).to(ast::BinaryKind::Div),
@@ -149,7 +150,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(5),
+                left(6),
                 choice((
                     just(Token::Plus).to(ast::BinaryKind::Add),
                     just(Token::Minus).to(ast::BinaryKind::Sub),
@@ -158,7 +159,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(4),
+                left(5),
                 choice((
                     just(Token::Shl).to(ast::BinaryKind::Shl),
                     just(Token::Shr).to(ast::BinaryKind::Shr),
@@ -167,7 +168,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(3),
+                left(4),
                 choice((
                     just(Token::Gt).to(ast::BinaryKind::Gt),
                     just(Token::Ge).to(ast::BinaryKind::Ge),
@@ -178,7 +179,7 @@ where
                 fold_binary,
             ),
             infix(
-                left(2),
+                left(3),
                 choice((
                     just(Token::Eq).to(ast::BinaryKind::Eq),
                     just(Token::Ne).to(ast::BinaryKind::Ne),
@@ -187,16 +188,30 @@ where
                 fold_binary,
             ),
             infix(
-                left(1),
+                left(2),
                 just(Token::And)
                     .to(ast::BinaryKind::And)
                     .map_with(map_binary),
                 fold_binary,
             ),
             infix(
-                left(0),
+                left(1),
                 just(Token::Or).to(ast::BinaryKind::Or).map_with(map_binary),
                 fold_binary,
+            ),
+            prefix(
+                0,
+                just(Token::If)
+                    .ignore_then(expr.clone().map(Box::new).delimited_by(
+                        just(Token::OpenParen),
+                        just(Token::CloseParen),
+                    ))
+                    .then(expr.map(Box::new))
+                    .then_ignore(just(Token::Else)),
+                |(cond, then), else_, e| ast::Expression {
+                    kind: ast::ExprKind::If(cond, then, Box::new(else_)),
+                    span: ast::Span::from(e.span()),
+                },
             ),
         ))
     });

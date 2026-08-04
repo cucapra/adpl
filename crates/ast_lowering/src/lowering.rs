@@ -422,6 +422,11 @@ impl LoweringContext<'_, '_> {
                 ast::ExprKind::Record(cons) => {
                     hir::ExprKind::Record(self.lower_constructor(cons)?)
                 }
+                ast::ExprKind::If(cond, then, else_) => hir::ExprKind::If(
+                    self.lower_expression(cond)?,
+                    self.lower_expression(then)?,
+                    self.lower_expression(else_)?,
+                ),
             };
 
             Ok(self.ctx.add(hir::Expression {
