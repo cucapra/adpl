@@ -6,10 +6,12 @@ use adpl_arena::{DenseMap, Index, NonMaxIndex};
 use adpl_hir as hir;
 use adpl_util::{Diagnostic, Reporter};
 
+use crate::flags::{ParamFlags, SetParamFlags};
 use crate::printer::Printer;
 use crate::promotion::Overloaded;
 use crate::queries::{Entailed, Equivalent, IntoSmt, LBool};
 use crate::substitution::{Arguments, Foldable};
+use crate::visit::Visitable;
 use crate::{errors, types as ty};
 
 pub fn check_hir(
@@ -69,6 +71,7 @@ pub struct Record {
 pub struct Signature {
     pub requires: Option<NonMaxIndex<ty::Proposition>>,
     pub inputs: Box<[Index<ty::Type>]>,
+    pub flags: Box<[ParamFlags]>,
     pub output: Index<ty::Type>,
 }
 
@@ -285,14 +288,14 @@ impl ItemContext<'_, '_> {
                     .iter()
                     .enumerate()
                     .map(|(i, &expr)| {
-                        let ty = self.tcx.signatures[call.callee].inputs[i];
+                        let flags = self.tcx.signatures[call.callee].flags[i];
 
-                        if self.tcx.arenas[ty].is_real_valued() {
-                            self.lowering
-                                .cache
-                                .get(&expr)
-                                .copied()
-                                .map_or_else(|| self.lower_expression(expr), Ok)
+                        if flags.contains(ParamFlags::IN_SPECIFICATION) {
+                            if flags.contains(ParamFlags::IN_IO_TYPE) {
+                                Ok(self.lowering.cache[&expr])
+                            } else {
+                                self.lower_expression(expr)
+                            }
                         } else {
                             Ok(Index::INVALID)
                         }
@@ -488,7 +491,7 @@ impl ItemContext<'_, '_> {
             self.tcx.env[param.local] = ty;
         }
 
-        let inputs = self.hir[def.inputs]
+        let inputs: Box<[_]> = self.hir[def.inputs]
             .iter()
             .map(|param| self.tcx.env[param.local])
             .collect();
@@ -500,7 +503,7 @@ impl ItemContext<'_, '_> {
 
                 self.asserts().assert(prop.into_smt(&self.tcx.arenas));
 
-                Ok(prop.try_into().unwrap())
+                Ok(NonMaxIndex::try_from(prop).unwrap())
             })
             .transpose()?;
 
@@ -517,9 +520,34 @@ impl ItemContext<'_, '_> {
 
         let output = self.lower_type(def.output)?;
 
+        let mut flags =
+            vec![ParamFlags::empty(); inputs.len()].into_boxed_slice();
+
+        let mut visitor = SetParamFlags {
+            ctx: &self.tcx.arenas,
+            out: &mut flags,
+            flags: ParamFlags::IN_IO_TYPE,
+        };
+
+        inputs.visit_with(&mut visitor);
+        output.visit_with(&mut visitor);
+
+        if let Some(prop) = requires {
+            visitor.flags = ParamFlags::IN_PRECONDITION;
+
+            prop.get().visit_with(&mut visitor);
+        }
+
+        if let Some(expr) = self.tcx.specs[index] {
+            visitor.flags = ParamFlags::IN_SPECIFICATION;
+
+            expr.get().visit_with(&mut visitor);
+        }
+
         let signature = Signature {
             requires,
             inputs,
+            flags,
             output,
         };
 
@@ -620,22 +648,16 @@ impl ItemContext<'_, '_> {
                     .map(|&expr| self.check_expression(expr))
                     .collect::<Result<_>>()?;
 
-                let lowered: Vec<_> = self.hir[call.args]
+                let mut lowered: Vec<_> = self.hir[call.args]
                     .iter()
-                    .zip(&args)
-                    .zip(&self.hir[self.hir[call.callee].inputs])
-                    .map(|((&expr, &ty), param)| match param.modifier {
-                        hir::Modifier::None => {
-                            Ok(if self.tcx.arenas[ty].is_real_valued() {
-                                self.tcx
-                                    .arenas
-                                    .intern(ty::Expression::Term(expr))
-                            } else {
-                                Index::INVALID
-                            })
-                        }
-                        hir::Modifier::Real => {
+                    .enumerate()
+                    .map(|(i, &expr)| {
+                        let flags = self.tcx.signatures[call.callee].flags[i];
+
+                        if flags.contains(ParamFlags::IN_IO_TYPE) {
                             self.within("argument").cache_expression(expr)
+                        } else {
+                            Ok(Index::INVALID)
                         }
                     })
                     .collect::<Result<_>>()?;
@@ -646,6 +668,7 @@ impl ItemContext<'_, '_> {
                     requires,
                     inputs: ref params,
                     output,
+                    ..
                 } = self.tcx.signatures[call.callee];
 
                 for (i, (&param, found)) in params.iter().zip(args).enumerate()
@@ -670,7 +693,23 @@ impl ItemContext<'_, '_> {
                     }
                 }
 
+                let result = output.fold_with(&mut self.tcx.arenas, &folder);
+
                 if let Some(requires) = requires {
+                    for ((l, &expr), &flags) in lowered
+                        .iter_mut()
+                        .zip(&self.hir[call.args])
+                        .zip(&self.tcx.signatures[call.callee].flags)
+                    {
+                        *l = if flags.contains(ParamFlags::IN_PRECONDITION) {
+                            self.tcx.arenas.intern(ty::Expression::Term(expr))
+                        } else {
+                            Index::INVALID
+                        }
+                    }
+
+                    let folder = Arguments::new(&generics, &lowered);
+
                     let prop =
                         requires.get().fold_with(&mut self.tcx.arenas, &folder);
 
@@ -691,7 +730,7 @@ impl ItemContext<'_, '_> {
                     }
                 }
 
-                output.fold_with(&mut self.tcx.arenas, &folder)
+                result
             }
             hir::ExprKind::Record(ref cons) => {
                 let args: Box<[_]> = self.hir[cons.generics]
