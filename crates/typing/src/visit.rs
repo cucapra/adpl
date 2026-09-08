@@ -1,7 +1,9 @@
 use std::convert::Infallible;
 use std::ops::ControlFlow;
 
-use crate::types::{Expression, Index, Proposition, Type, TypeArenas};
+use crate::types::{
+    self as ty, Expression, Index, Proposition, Type, TypeArenas,
+};
 
 pub trait VisitResult {
     type Residual;
@@ -37,12 +39,20 @@ pub trait Visitor<'ctx, Context> {
     fn visit_generic(&mut self, _index: usize) -> Self::Result {
         VisitResult::output()
     }
+
+    fn visit_field(&mut self, container: Context::Expression) -> Self::Result
+    where
+        Context: ty::TypeStore,
+        Context::Expression: Visitable<Context>,
+    {
+        container.visit_with(self)
+    }
 }
 
 pub trait Visitable<Context> {
     fn visit_with<'ctx, V>(self, visitor: &mut V) -> V::Result
     where
-        V: Visitor<'ctx, Context>;
+        V: Visitor<'ctx, Context> + ?Sized;
 }
 
 macro_rules! try_visit {
@@ -59,7 +69,7 @@ macro_rules! try_visit {
 impl<Context, T: Visitable<Context> + Copy> Visitable<Context> for &[T] {
     fn visit_with<'ctx, V>(self, visitor: &mut V) -> V::Result
     where
-        V: Visitor<'ctx, Context>,
+        V: Visitor<'ctx, Context> + ?Sized,
     {
         for e in self {
             try_visit!(e, visitor);
@@ -72,7 +82,7 @@ impl<Context, T: Visitable<Context> + Copy> Visitable<Context> for &[T] {
 impl Visitable<TypeArenas> for Index<Type> {
     fn visit_with<'ctx, V>(self, visitor: &mut V) -> V::Result
     where
-        V: Visitor<'ctx, TypeArenas>,
+        V: Visitor<'ctx, TypeArenas> + ?Sized,
     {
         match visitor.ctx()[self] {
             Type::Real | Type::Integer | Type::Bool => VisitResult::output(),
@@ -91,13 +101,14 @@ impl Visitable<TypeArenas> for Index<Type> {
 impl Visitable<TypeArenas> for Index<Expression> {
     fn visit_with<'ctx, V>(self, visitor: &mut V) -> V::Result
     where
-        V: Visitor<'ctx, TypeArenas>,
+        V: Visitor<'ctx, TypeArenas> + ?Sized,
     {
         match visitor.ctx()[self] {
             Expression::Param(i) => visitor.visit_param(i.into()),
             Expression::GenericParam(i) => visitor.visit_generic(i.into()),
             Expression::Term(_) => VisitResult::output(),
             Expression::Const(_) => VisitResult::output(),
+            Expression::Field(expr, _) => visitor.visit_field(expr),
             Expression::Neg(expr) => expr.visit_with(visitor),
             Expression::Binary(_, lhs, rhs) => {
                 try_visit!(lhs, visitor);
@@ -111,7 +122,7 @@ impl Visitable<TypeArenas> for Index<Expression> {
 impl Visitable<TypeArenas> for Index<Proposition> {
     fn visit_with<'ctx, V>(self, visitor: &mut V) -> V::Result
     where
-        V: Visitor<'ctx, TypeArenas>,
+        V: Visitor<'ctx, TypeArenas> + ?Sized,
     {
         match visitor.ctx()[self] {
             Proposition::Not(prop) => prop.visit_with(visitor),

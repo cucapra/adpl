@@ -56,6 +56,18 @@ impl From<ExpectedProposition<'_>> for Diagnostic {
     }
 }
 
+pub struct ExpectedPlace<'a> {
+    pub expr: &'a hir::Expression,
+}
+
+impl From<ExpectedPlace<'_>> for Diagnostic {
+    fn from(value: ExpectedPlace) -> Self {
+        Diagnostic::error()
+            .with_message("expected place expression, found temporary")
+            .with_primary(value.expr.span, "expected a place expression")
+    }
+}
+
 pub struct DeclaredTypeNotRealValued<'a> {
     pub name: &'a hir::Id,
     pub ty: &'a hir::Type,

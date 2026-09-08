@@ -171,7 +171,8 @@ impl IntoSmt for Index<ty::Expression> {
         match ctx[self] {
             ty::Expression::Param(_)
             | ty::Expression::GenericParam(_)
-            | ty::Expression::Term(_) => ast::Real::new_const(self.inner()),
+            | ty::Expression::Term(_)
+            | ty::Expression::Field(..) => ast::Real::new_const(self.inner()),
             ty::Expression::Const(value) => {
                 ast::Real::from_int(&ast::Int::from_u64(value))
             }

@@ -152,8 +152,9 @@ impl<'a> Printer<'a> {
 
                 write!(w, "{}", param.name.symbol)
             }
-            ty::Expression::Term(_) => write!(w, "..."),
+            ty::Expression::Term(_) => write!(w, "#{}", child.inner()),
             ty::Expression::Const(value) => write!(w, "{value}"),
+            ty::Expression::Field(..) => write!(w, "#{}", child.inner()),
             ty::Expression::Neg(expr) => {
                 const PRECEDENCE: u8 = 3;
 

@@ -89,6 +89,11 @@ impl Foldable<Index<Expression>> for Index<Expression> {
             Expression::GenericParam(i) => folder.fold_generic(i.into()),
             Expression::Term(_) => panic!(),
             Expression::Const(_) => self,
+            Expression::Field(expr, i) => {
+                let expr = expr.fold_with(ctx, folder);
+
+                ctx.intern(Expression::Field(expr, i))
+            }
             Expression::Neg(expr) => {
                 let expr = expr.fold_with(ctx, folder);
 

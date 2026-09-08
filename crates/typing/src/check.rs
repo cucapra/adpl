@@ -81,6 +81,7 @@ pub struct TypingContext {
     pub signatures: DenseMap<hir::Definition, Signature>,
     pub specs: DenseMap<hir::Definition, Option<NonMaxIndex<ty::Expression>>>,
     pub env: DenseMap<hir::Local, Index<ty::Type>>,
+    pub temps: DenseMap<hir::Expression, Index<ty::Type>>,
 }
 
 impl TypingContext {
@@ -91,6 +92,7 @@ impl TypingContext {
             signatures: DenseMap::new(),
             specs: DenseMap::filled_with_default(hir.defs.len()),
             env: DenseMap::filled(hir.locals.len(), Index::ZERO),
+            temps: DenseMap::filled(hir.exprs.len(), Index::ZERO),
         }
     }
 }
@@ -245,14 +247,7 @@ impl ItemContext<'_, '_> {
             hir::ExprKind::Lit(ref literal) => {
                 Ok(self.tcx.arenas.intern(ty::Expression::Const(literal.value)))
             }
-            hir::ExprKind::Field(_, ref field) => {
-                self.reporter.emit(errors::NoDenotation {
-                    op: errors::OpKind::Field(field),
-                    context: self.lowering.context.unwrap(),
-                });
-
-                Err(TypingError)
-            }
+            hir::ExprKind::Field(..) => self.lower_place(expr),
             hir::ExprKind::Unary(ref op, arg) => match op.kind {
                 hir::UnaryKind::Neg => {
                     let arg = self.lower_expression(arg)?;
@@ -294,7 +289,11 @@ impl ItemContext<'_, '_> {
                             if flags.contains(ParamFlags::IN_IO_TYPE) {
                                 Ok(self.lowering.cache[&expr])
                             } else {
-                                self.lower_expression(expr)
+                                if flags.contains(ParamFlags::REQUIRES_PLACE) {
+                                    self.lower_projections(expr)
+                                } else {
+                                    self.lower_expression(expr)
+                                }
                             }
                         } else {
                             Ok(Index::INVALID)
@@ -339,6 +338,78 @@ impl ItemContext<'_, '_> {
         expr: Index<hir::Expression>,
     ) -> Result<Index<ty::Expression>> {
         self.lower_expression(expr)
+            .map(|lowered| self.lowering.cached(expr, lowered))
+    }
+
+    fn lower_place(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Expression>> {
+        let ty = self.tcx.temps[expr];
+
+        if !self.tcx.arenas[ty].is_real_valued() {
+            self.reporter
+                .emit(Diagnostic::from(errors::TypeNotRealValued {
+                    expr: &self.hir[expr],
+                    ty,
+                    printer: &self.printer(),
+                }));
+
+            return Err(TypingError);
+        }
+
+        self.lower_projections(expr)
+    }
+
+    fn lower_projections(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Expression>> {
+        match self.hir[expr].kind {
+            hir::ExprKind::Id(local) => match self.hir[local].kind {
+                hir::LocalKind::Let(expr) => {
+                    Ok(self.tcx.arenas.intern(ty::Expression::Term(expr)))
+                }
+                hir::LocalKind::Param(i) => {
+                    Ok(self.tcx.arenas.intern(ty::Expression::Param(i)))
+                }
+                hir::LocalKind::Real(_) | hir::LocalKind::GenericParam(_) => {
+                    self.reporter.emit(errors::ExpectedPlace {
+                        expr: &self.hir[expr],
+                    });
+
+                    Err(TypingError)
+                }
+            },
+            hir::ExprKind::Field(expr, ref field) => {
+                let container = self.lower_projections(expr)?;
+                let ty = self.tcx.temps[expr];
+
+                let i = self.hir[self.tcx.arenas[ty].expect_record()]
+                    .fields
+                    .into_iter()
+                    .position(|decl| self.hir[decl].name.symbol == field.symbol)
+                    .unwrap();
+
+                let i = i.try_into().unwrap();
+
+                Ok(self.tcx.arenas.intern(ty::Expression::Field(container, i)))
+            }
+            _ => {
+                self.reporter.emit(errors::ExpectedPlace {
+                    expr: &self.hir[expr],
+                });
+
+                Err(TypingError)
+            }
+        }
+    }
+
+    fn cache_projections(
+        &mut self,
+        expr: Index<hir::Expression>,
+    ) -> Result<Index<ty::Expression>> {
+        self.lower_projections(expr)
             .map(|lowered| self.lowering.cached(expr, lowered))
     }
 
@@ -527,6 +598,7 @@ impl ItemContext<'_, '_> {
             ctx: &self.tcx.arenas,
             out: &mut flags,
             flags: ParamFlags::IN_IO_TYPE,
+            in_projection: ParamFlags::REQUIRES_PLACE,
         };
 
         inputs.visit_with(&mut visitor);
@@ -534,12 +606,14 @@ impl ItemContext<'_, '_> {
 
         if let Some(prop) = requires {
             visitor.flags = ParamFlags::IN_PRECONDITION;
+            visitor.in_projection = ParamFlags::empty();
 
             prop.get().visit_with(&mut visitor);
         }
 
         if let Some(expr) = self.tcx.specs[index] {
             visitor.flags = ParamFlags::IN_SPECIFICATION;
+            visitor.in_projection = ParamFlags::REQUIRES_PLACE;
 
             expr.get().visit_with(&mut visitor);
         }
@@ -655,7 +729,11 @@ impl ItemContext<'_, '_> {
                         let flags = self.tcx.signatures[call.callee].flags[i];
 
                         if flags.contains(ParamFlags::IN_IO_TYPE) {
-                            self.within("argument").cache_expression(expr)
+                            if flags.contains(ParamFlags::REQUIRES_PLACE) {
+                                self.cache_projections(expr)
+                            } else {
+                                self.within("argument").cache_expression(expr)
+                            }
                         } else {
                             Ok(Index::INVALID)
                         }
@@ -838,6 +916,8 @@ impl ItemContext<'_, '_> {
                 then_ty
             }
         };
+
+        self.tcx.temps[expr] = ty;
 
         Ok(ty)
     }

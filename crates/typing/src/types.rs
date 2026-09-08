@@ -38,6 +38,7 @@ pub enum Expression {
     GenericParam(u16),
     Term(Index<hir::Expression>),
     Const(u64),
+    Field(Index<Expression>, u16),
     Neg(Index<Expression>),
     Binary(BinaryOp, Index<Expression>, Index<Expression>),
 }
@@ -94,6 +95,13 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn expect_record(&self) -> Index<hir::Record> {
+        match *self {
+            Type::Record { name, .. } => name,
+            _ => panic!(),
+        }
+    }
+
     pub fn is_real_valued(&self) -> bool {
         matches!(
             self,
@@ -187,3 +195,15 @@ macro_rules! intern_impl {
 intern_impl!(exprs, Expression);
 intern_impl!(props, Proposition);
 intern_impl!(types, Type);
+
+pub trait TypeStore {
+    type Expression;
+    type Proposition;
+    type Type;
+}
+
+impl TypeStore for TypeArenas {
+    type Expression = Index<Expression>;
+    type Proposition = Index<Proposition>;
+    type Type = Index<Type>;
+}
