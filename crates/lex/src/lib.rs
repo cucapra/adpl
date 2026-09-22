@@ -13,6 +13,9 @@ pub enum Token<'src> {
     #[regex("[0-9]+")]
     Literal(&'src str),
 
+    #[regex("\"[^\"]*\"")]
+    String(&'src str),
+
     #[token("assert")]
     Assert,
     #[token("const")]
@@ -25,6 +28,8 @@ pub enum Token<'src> {
     If,
     #[token("implements")]
     Implements,
+    #[token("import")]
+    Import,
     #[token("real")]
     Real,
     #[token("return")]

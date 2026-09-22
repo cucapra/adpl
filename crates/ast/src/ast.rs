@@ -1,11 +1,12 @@
-use std::ops::Range;
-
 use symbol_table::GlobalSymbol;
+
+use crate::span::Span;
 
 pub type Symbol = GlobalSymbol;
 
 #[derive(Debug)]
 pub struct File {
+    pub imports: Vec<String>,
     pub items: Vec<Item>,
 }
 
@@ -212,28 +213,4 @@ pub struct Constructor {
     pub name: Id,
     pub generics: Vec<Expression>,
     pub fields: Vec<(Id, Expression)>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct Span(usize, usize);
-
-impl Span {
-    #[inline]
-    pub fn new(start: usize, end: usize) -> Span {
-        Span(start, end)
-    }
-}
-
-impl From<Range<usize>> for Span {
-    #[inline]
-    fn from(value: Range<usize>) -> Self {
-        Span(value.start, value.end)
-    }
-}
-
-impl From<Span> for Range<usize> {
-    #[inline]
-    fn from(value: Span) -> Self {
-        value.0..value.1
-    }
 }

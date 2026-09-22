@@ -15,8 +15,10 @@ pub struct ParseError(pub parse::Error);
 
 impl From<ParseError> for Diagnostic {
     fn from(value: ParseError) -> Self {
+        let (file, range) = value.0.span().clone();
+
         Diagnostic::error()
             .with_message("syntax error")
-            .with_primary(value.0.span().clone(), "syntax error")
+            .with_primary((file.into(), range), "syntax error")
     }
 }

@@ -121,16 +121,16 @@ impl LoweringContext {
     }
 }
 
-struct ItemContext<'a, 'src> {
+struct ItemContext<'a> {
     hir: &'a hir::Context,
-    reporter: &'a mut Reporter<'src>,
+    reporter: &'a mut Reporter,
     tcx: &'a mut TypingContext,
     lowering: &'a mut LoweringContext,
     asserts: OnceCell<z3::Solver>,
     item: Index<hir::Item>,
 }
 
-impl ItemContext<'_, '_> {
+impl ItemContext<'_> {
     fn lower_type(&mut self, ty: Index<hir::Type>) -> Result<Index<ty::Type>> {
         let ty = &self.hir[ty];
         let args = &self.hir[ty.args];
@@ -926,26 +926,26 @@ impl ItemContext<'_, '_> {
         &mut self,
         context: &'static str,
     ) -> impl ops::DerefMut<Target = Self> {
-        struct Guard<'ctx, 'a, 'b> {
-            ctx: &'ctx mut ItemContext<'a, 'b>,
+        struct Guard<'ctx, 'a> {
+            ctx: &'ctx mut ItemContext<'a>,
             outer: Option<&'static str>,
         }
 
-        impl<'a, 'b> ops::Deref for Guard<'_, 'a, 'b> {
-            type Target = ItemContext<'a, 'b>;
+        impl<'a> ops::Deref for Guard<'_, 'a> {
+            type Target = ItemContext<'a>;
 
             fn deref(&self) -> &Self::Target {
                 self.ctx
             }
         }
 
-        impl ops::DerefMut for Guard<'_, '_, '_> {
+        impl ops::DerefMut for Guard<'_, '_> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 self.ctx
             }
         }
 
-        impl Drop for Guard<'_, '_, '_> {
+        impl Drop for Guard<'_, '_> {
             fn drop(&mut self) {
                 self.ctx.lowering.context = self.outer;
             }
@@ -969,12 +969,12 @@ impl ItemContext<'_, '_> {
     }
 }
 
-struct DefinitionContext<'a, 'src> {
-    icx: ItemContext<'a, 'src>,
+struct DefinitionContext<'a> {
+    icx: ItemContext<'a>,
     def: Index<hir::Definition>,
 }
 
-impl DefinitionContext<'_, '_> {
+impl DefinitionContext<'_> {
     fn check_definition(&mut self) -> Result<()> {
         self.icx.check_signature(self.def)?;
 

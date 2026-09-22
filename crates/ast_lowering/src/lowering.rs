@@ -9,7 +9,7 @@ use crate::builtins::Primitive;
 use crate::errors;
 
 pub fn lower_ast(
-    file: &ast::File,
+    items: &[ast::Item],
     reporter: &mut Reporter,
 ) -> Option<hir::Context> {
     let mut ctx = hir::Context::new();
@@ -21,7 +21,7 @@ pub fn lower_ast(
         scopes: Vec::new(),
     };
 
-    lowering.lower_file(file).ok()?;
+    lowering.lower_items(items).ok()?;
 
     Some(ctx)
 }
@@ -31,18 +31,18 @@ struct LoweringError;
 
 type Result<T> = std::result::Result<T, LoweringError>;
 
-struct LoweringContext<'a, 'src> {
+struct LoweringContext<'a> {
     ctx: &'a mut hir::Context,
-    reporter: &'a mut Reporter<'src>,
+    reporter: &'a mut Reporter,
     globals: HashMap<ast::Symbol, Global>,
     scopes: Vec<HashMap<ast::Symbol, hir::Index<hir::Local>>>,
 }
 
-impl LoweringContext<'_, '_> {
-    fn lower_file(&mut self, file: &ast::File) -> Result<()> {
+impl LoweringContext<'_> {
+    fn lower_items(&mut self, items: &[ast::Item]) -> Result<()> {
         self.add_builtins();
 
-        for item in &file.items {
+        for item in items {
             let item = match &item.kind {
                 ast::ItemKind::Record(record) => {
                     hir::Item::Record(self.lower_record(record)?)

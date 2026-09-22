@@ -3,11 +3,11 @@ use std::ops::Range;
 use std::sync::LazyLock;
 
 use codespan_reporting::diagnostic::{Diagnostic as InnerDiagnostic, Label};
-use codespan_reporting::files::SimpleFile;
+use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{self, Config};
 
-pub struct Diagnostic(InnerDiagnostic<()>);
+pub struct Diagnostic(InnerDiagnostic<usize>);
 
 impl Diagnostic {
     #[inline]
@@ -27,50 +27,52 @@ impl Diagnostic {
 
     pub fn with_message<M: Into<String>>(mut self, message: M) -> Diagnostic {
         self.0.message = message.into();
+
         self
     }
 
     pub fn with_primary<S, L>(mut self, span: S, label: L) -> Diagnostic
     where
-        S: Into<Range<usize>>,
+        S: Into<(usize, Range<usize>)>,
         L: Into<String>,
     {
+        let (file, range) = span.into();
+
         self.0
             .labels
-            .push(Label::primary((), span).with_message(label));
+            .push(Label::primary(file, range).with_message(label));
 
         self
     }
 
     pub fn with_secondary<S, L>(mut self, span: S, label: L) -> Diagnostic
     where
-        S: Into<Range<usize>>,
+        S: Into<(usize, Range<usize>)>,
         L: Into<String>,
     {
+        let (file, range) = span.into();
+
         self.0
             .labels
-            .push(Label::secondary((), span).with_message(label));
+            .push(Label::secondary(file, range).with_message(label));
 
         self
     }
 
     pub fn with_note<N: Into<String>>(mut self, note: N) -> Diagnostic {
         self.0.notes.push(note.into());
+
         self
     }
 }
 
-pub struct Reporter<'src> {
-    file: SimpleFile<&'src str, &'src str>,
+pub struct Reporter {
+    files: SimpleFiles<String, String>,
     writer: StandardStream,
 }
 
-impl<'src> Reporter<'src> {
-    pub fn early() -> Reporter<'static> {
-        Reporter::new("", "")
-    }
-
-    pub fn new(filename: &'src str, source: &'src str) -> Reporter<'src> {
+impl Reporter {
+    pub fn new() -> Reporter {
         let choice = if io::stderr().is_terminal() {
             ColorChoice::Auto
         } else {
@@ -78,16 +80,22 @@ impl<'src> Reporter<'src> {
         };
 
         Reporter {
-            file: SimpleFile::new(filename, source),
+            files: SimpleFiles::new(),
             writer: StandardStream::stderr(choice),
         }
+    }
+
+    pub fn add_file(&mut self, name: String, source: String) -> (usize, &str) {
+        let handle = self.files.add(name, source);
+
+        (handle, self.files.get(handle).unwrap().source())
     }
 
     pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         term::emit(
             &mut self.writer,
             Reporter::config(),
-            &self.file,
+            &self.files,
             &diagnostic.0,
         )
         .unwrap();
@@ -101,5 +109,11 @@ impl<'src> Reporter<'src> {
         static CONFIG: LazyLock<Config> = LazyLock::new(Config::default);
 
         &CONFIG
+    }
+}
+
+impl Default for Reporter {
+    fn default() -> Self {
+        Reporter::new()
     }
 }

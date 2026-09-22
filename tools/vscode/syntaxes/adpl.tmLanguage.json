@@ -44,6 +44,15 @@
         }
       ]
     },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.adpl",
+          "begin": "\"",
+          "end": "\""
+        }
+      ]
+    },
     "declarations": {
       "patterns": [
         {
@@ -113,6 +122,9 @@
           "include": "#constants"
         },
         {
+          "include": "#strings"
+        },
+        {
           "name": "meta.function.call.adpl",
           "begin": "\\b(\\w+)(?=(?:\\[.*\\])?\\()",
           "beginCaptures": {
@@ -142,7 +154,7 @@
       "patterns": [
         {
           "name": "keyword.control.adpl",
-          "match": "\\b(assert|else|if|return)\\b"
+          "match": "\\b(assert|else|if|import|return)\\b"
         },
         {
           "name": "keyword.operator.adpl",

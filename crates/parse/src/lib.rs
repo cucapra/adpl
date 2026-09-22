@@ -11,7 +11,7 @@ use chumsky::{IterParser as _, Parser, select};
 use adpl_ast as ast;
 use adpl_lex::{Lexer, Token};
 
-pub type Span = Range<usize>;
+pub type Span = (u16, Range<usize>);
 pub type Error = Cheap<Span>;
 
 enum AtomTail {
@@ -27,7 +27,7 @@ where
     let id = select! {
         Token::Ident(symbol) = e => ast::Id {
             symbol: ast::Symbol::from(symbol),
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         },
     };
 
@@ -39,6 +39,10 @@ where
             .map(|value| ast::Literal { value })
             .map_err(|_| Error::new(span))
     });
+
+    let string = select! {
+        Token::String(quoted) => quoted[1..quoted.len() - 1].to_owned(),
+    };
 
     let expr = recursive(|expr| {
         let generics = expr
@@ -96,26 +100,26 @@ where
         ))
         .map_with(|kind, e| ast::Expression {
             kind,
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         });
 
         let map_binary =
             |kind, e: &mut MapExtra<'tk, '_, I, _>| ast::BinaryOp {
                 kind,
-                span: ast::Span::from(e.span()),
+                span: ast::Span::from_pair(e.span()),
             };
 
         let fold_binary =
             |lhs, op, rhs, e: &mut MapExtra<'tk, '_, I, _>| ast::Expression {
                 kind: ast::ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),
-                span: ast::Span::from(e.span()),
+                span: ast::Span::from_pair(e.span()),
             };
 
         atom.pratt((
             postfix(10, just(Token::Dot).ignore_then(id), |lhs, id, e| {
                 ast::Expression {
                     kind: ast::ExprKind::Field(Box::new(lhs), id),
-                    span: ast::Span::from(e.span()),
+                    span: ast::Span::from_pair(e.span()),
                 }
             }),
             infix(
@@ -133,11 +137,11 @@ where
                 ))
                 .map_with(|kind, e| ast::UnaryOp {
                     kind,
-                    span: ast::Span::from(e.span()),
+                    span: ast::Span::from_pair(e.span()),
                 }),
                 |op, rhs, e| ast::Expression {
                     kind: ast::ExprKind::Unary(op, Box::new(rhs)),
-                    span: ast::Span::from(e.span()),
+                    span: ast::Span::from_pair(e.span()),
                 },
             ),
             infix(
@@ -210,7 +214,7 @@ where
                     .then_ignore(just(Token::Else)),
                 |(cond, then), else_, e| ast::Expression {
                     kind: ast::ExprKind::If(cond, then, Box::new(else_)),
-                    span: ast::Span::from(e.span()),
+                    span: ast::Span::from_pair(e.span()),
                 },
             ),
         ))
@@ -249,7 +253,7 @@ where
         ))
         .map_with(|kind, e| ast::Statement {
             kind,
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         });
 
         statement
@@ -271,7 +275,7 @@ where
         .map_with(|(name, args), e| ast::Type {
             name,
             args: args.unwrap_or_else(Vec::new),
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         })
         .boxed();
 
@@ -289,7 +293,7 @@ where
         .map_with(|(name, ty), e| ast::Field {
             name,
             ty,
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         })
         .separated_by(just(Token::Comma))
         .allow_trailing()
@@ -328,7 +332,7 @@ where
             modifier,
             name,
             ty,
-            span: ast::Span::from(e.span()),
+            span: ast::Span::from_pair(e.span()),
         })
         .separated_by(just(Token::Comma))
         .allow_trailing()
@@ -366,20 +370,29 @@ where
         },
     );
 
-    choice((record, definition))
+    let items = choice((record, definition))
         .map(|kind| ast::Item { kind })
         .repeated()
-        .collect()
-        .map(|items| ast::File { items })
+        .collect();
+
+    let imports = just(Token::Import)
+        .ignore_then(string)
+        .then_ignore(just(Token::Semicolon))
+        .repeated()
+        .collect();
+
+    imports
+        .then(items)
+        .map(|(imports, items)| ast::File { imports, items })
 }
 
-pub fn parse(src: &str) -> Result<ast::File, Vec<Error>> {
-    let lexer = Lexer::new(src)
+pub fn parse(file: u16, source: &str) -> Result<ast::File, Vec<Error>> {
+    let lexer = Lexer::new(source)
         .spanned()
-        .map(|(tk, span)| (tk.unwrap_or(Token::Error), span));
+        .map(|(tk, span)| (tk.unwrap_or(Token::Error), (file, span)));
 
-    let eoi = src.len()..src.len();
-    let stream = Stream::from_iter(lexer).map(eoi, |tk| tk);
+    let eoi = (file, source.len()..source.len());
+    let stream = Stream::from_iter(lexer).map(eoi, |pair| pair);
 
     parser().parse(stream).into_result()
 }
