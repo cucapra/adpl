@@ -1,31 +1,9 @@
-use std::convert::Infallible;
 use std::ops::ControlFlow;
 
-use crate::types::{
-    self as ty, Expression, Index, Proposition, Type, TypeArenas,
-};
+use adpl_arena::Index;
+use adpl_hir::visit::VisitResult;
 
-pub trait VisitResult {
-    type Residual;
-
-    fn output() -> Self;
-
-    fn from_residual(residual: Self::Residual) -> Self;
-
-    fn branch(self) -> ControlFlow<Self::Residual>;
-}
-
-impl VisitResult for () {
-    type Residual = Infallible;
-
-    fn output() {}
-
-    fn from_residual(_: Infallible) {}
-
-    fn branch(self) -> ControlFlow<Infallible> {
-        ControlFlow::Continue(())
-    }
-}
+use crate::types::{self as ty, Expression, Proposition, Type, TypeArenas};
 
 pub trait Visitor<'ctx, Context> {
     type Result: VisitResult;
