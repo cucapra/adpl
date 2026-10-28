@@ -144,6 +144,16 @@ impl<T> fmt::Debug for IndexRange<T> {
     }
 }
 
+impl<T> Default for IndexRange<T> {
+    #[inline]
+    fn default() -> Self {
+        IndexRange {
+            start: Index::ZERO,
+            end: Index::ZERO,
+        }
+    }
+}
+
 impl<T> From<IndexRange<T>> for Range<Index<T>> {
     #[inline]
     fn from(value: IndexRange<T>) -> Self {
@@ -190,6 +200,16 @@ impl<T> Iterator for IndexRangeIterator<T> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.range.size_hint()
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<Index<T>> {
+        Some(Index::new_unchecked(self.range.nth(n)?))
+    }
+
+    #[inline]
+    fn last(mut self) -> Option<Index<T>> {
+        self.next_back()
     }
 }
 

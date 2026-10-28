@@ -31,6 +31,14 @@ impl<T> Arena<T> {
     }
 
     #[inline]
+    pub fn get_disjoint_mut<const N: usize>(
+        &mut self,
+        indices: [Index<T>; N],
+    ) -> Result<[&mut T; N], slice::GetDisjointMutError> {
+        self.data.get_disjoint_mut(indices.map(Index::index))
+    }
+
+    #[inline]
     pub fn reserve(&mut self, additional: usize) {
         self.data.reserve(additional);
     }

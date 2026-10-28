@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
-use std::ops;
+use std::{ops, slice};
 
-use crate::Index;
+use crate::{Index, IndexRange};
 
 pub struct DenseMap<K, V> {
     data: Vec<V>,
@@ -15,6 +15,14 @@ impl<K, V> DenseMap<K, V> {
             data: Vec::new(),
             phantom: PhantomData,
         }
+    }
+
+    #[inline]
+    pub fn get_disjoint_mut<const N: usize>(
+        &mut self,
+        indices: [Index<K>; N],
+    ) -> Result<[&mut V; N], slice::GetDisjointMutError> {
+        self.data.get_disjoint_mut(indices.map(Index::index))
     }
 
     #[inline]
@@ -78,5 +86,21 @@ impl<K, V> ops::IndexMut<Index<K>> for DenseMap<K, V> {
     #[inline]
     fn index_mut(&mut self, index: Index<K>) -> &mut V {
         &mut self.data[index.index()]
+    }
+}
+
+impl<K, V> ops::Index<IndexRange<K>> for DenseMap<K, V> {
+    type Output = [V];
+
+    #[inline]
+    fn index(&self, index: IndexRange<K>) -> &[V] {
+        &self.data[index.start.index()..index.end.index()]
+    }
+}
+
+impl<K, V> ops::IndexMut<IndexRange<K>> for DenseMap<K, V> {
+    #[inline]
+    fn index_mut(&mut self, index: IndexRange<K>) -> &mut [V] {
+        &mut self.data[index.start.index()..index.end.index()]
     }
 }
